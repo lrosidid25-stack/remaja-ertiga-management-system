@@ -1,0 +1,5 @@
+uploads/*
+!uploads/*/.gitkeep
+config/service-account.json
+remaja_ertiga.db
+.DS_Store
