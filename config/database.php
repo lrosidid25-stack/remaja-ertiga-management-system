@@ -1,19 +1,18 @@
 <?php
-/**
- * KONEKSI DATABASE - Google Sheets Edition
- */
-require_once __DIR__ . '/google_config.php';
-require_once __DIR__ . '/../includes/google_sheets_api.php';
-function initDatabase(): void {
-    $settings = gsheets_read(SHEET_PENGATURAN);
-    if (count($settings) <= 1) {
-        gsheets_write(SHEET_PENGATURAN, [
-            ['kunci','nilai','keterangan'],
-            ['nama_organisasi','Remaja Ertiga','Nama organisasi'],
-            ['rt','03','RT'],
-            ['rw','04','RW'],
-            ['nominal_per_hari','500','Nominal per hari'],
-            ['fonnte_token','','Token Fonnte'],
-        ]);
+define('DB_PATH', __DIR__ . '/../remaja_ertiga.db');
+function getDB(): PDO {
+    static $db = null;
+    if ($db === null) {
+        $db = new PDO('sqlite:' . DB_PATH);
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        $db->exec("PRAGMA journal_mode=WAL");
+        $db->exec("PRAGMA foreign_keys=ON");
     }
+    return $db;
+}
+function initDatabase(): void {
+    $db = getDB();
+    $db->exec("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL, nama TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'humas', no_hp TEXT DEFAULT '', aktif INTEGER DEFAULT 1, last_login DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES: No change needed here)");
+    seedDefaultData($db);
 }
