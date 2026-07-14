@@ -2,20 +2,24 @@
 /**
  * KONEKSI DATABASE & INISIALISASI TABEL
  * - LOKAL: SQLite (remaja_ertiga.db)
- * - VERCEL: Google Sheets (SQLite tidak persisten di serverless)
+ * - VERCEL: Supabase PostgreSQL (via REST API)
  */
+
+// ===== Supabase Configuration =====
+define('SUPABASE_URL', 'https://rilnglxfbbzmxvmxlsjm.supabase.co');
+define('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpbG5nbHhmYmJ6bXh2bXhsc2ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNDkzNDYsImV4cCI6MjA5OTYyNTM0Nn0.5enZLSKSQKObC45d7NhkqbP35aR63wVNIgrigCi66w8');
+
+define('DB_PATH', __DIR__ . '/../remaja_ertiga.db');
 
 // Auto-detect environment
 if (getenv('VERCEL') || getenv('VERCEL_ENV')) {
-    // ===== VERCEL MODE: Google Sheets =====
-    require_once __DIR__ . '/google_config.php';
-    require_once __DIR__ . '/google_db.php';
-    function getDB(): GoogleDB { return new GoogleDB(); }
-    function initDatabase(): void { /* Sheets sudah ada tab-nya */ }
+    // ===== VERCEL MODE: Supabase =====
+    require_once __DIR__ . '/supabase_db.php';
+    function getDB(): SupabaseDB { return new SupabaseDB(); }
+    function initDatabase(): void { /* Tabel sudah dibuat di Supabase */ }
 
 } else {
     // ===== LOKAL MODE: SQLite =====
-    define('DB_PATH', __DIR__ . '/../remaja_ertiga.db');
     require_once __DIR__ . '/../includes/google_sync.php';
 }
 
