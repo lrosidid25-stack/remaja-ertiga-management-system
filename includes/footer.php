@@ -18,20 +18,20 @@ $provinsi = $pengaturan['provinsi'] ?? '';
     <div class="footer-container">
         <div class="footer-top">
             <div class="footer-brand">
-                <h3>🏘Ȼ <?= htmlspecialchars($namaOrg) ?></h3>
+                <h3>🏘️ <?= htmlspecialchars($namaOrg) ?></h3>
                 <p>
                     <?php
                     $alamat = [];
                     if ($dukuh) $alamat[] = $dukuh;
-                    if ($rt) $alamat[] = "RT <?php
-                    if ($rwie)) $alamat[] = "RW{?{ == $rw ?>"}";
+                    if ($rt) $alamat[] = "RT {$rt}";
+                    if ($rw) $alamat[] = "RW {$rw}";
                     if ($desa) $alamat[] = $desa;
                     if ($kecamatan) $alamat[] = $kecamatan;
                     if ($kabupaten) $alamat[] = $kabupaten;
                     if ($provinsi) $alamat[] = $provinsi;
                     echo htmlspecialchars(implode(', ', $alamat));
                     ?>
-</p>
+                </p>
             </div>
             <?php if (isLoggedIn()): ?>
             <div class="footer-links">
