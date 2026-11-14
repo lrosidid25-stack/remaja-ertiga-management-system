@@ -92,7 +92,10 @@ class SupabaseRpcDatabase
 
     public function query(string $sql): SupabaseRpcStatement
     {
-        return new SupabaseRpcStatement($this, trim($sql), []);
+        // PDO::query() langsung mengeksekusi; begitu pula di sini.
+        $stmt = new SupabaseRpcStatement($this, trim($sql), []);
+        $stmt->execute();
+        return $stmt;
     }
 
     public function exec(string $sql): int|false
