@@ -33,12 +33,22 @@ $stmt = $db->prepare("SELECT * FROM anggota {$whereSql} ORDER BY nama LIMIT {$pe
 $stmt->execute($params);
 $anggota = $stmt->fetchAll();
 
-// Statistik ringkas
-$statTotal = (int)$db->query("SELECT COUNT(*) FROM anggota")->fetchColumn();
-$statAktif = (int)$db->query("SELECT COUNT(*) FROM anggota WHERE status='aktif'")->fetchColumn();
-$statWajib = (int)$db->query("SELECT COUNT(*) FROM anggota WHERE status='aktif' AND wajib_iuran=1")->fetchColumn();
-$statL = (int)$db->query("SELECT COUNT(*) FROM anggota WHERE jenis_kelamin='L' AND status='aktif'")->fetchColumn();
-$statP = (int)$db->query("SELECT COUNT(*) FROM anggota WHERE jenis_kelamin='P' AND status='aktif'")->fetchColumn();
+// Statistik ringkas — satu query agregat untuk 5 angka (hemat 4 request)
+$stat = [];
+try {
+    $stat = $db->query("SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN status='aktif' THEN 1 ELSE 0 END) AS aktif,
+            SUM(CASE WHEN status='aktif' AND wajib_iuran=1 THEN 1 ELSE 0 END) AS wajib,
+            SUM(CASE WHEN jenis_kelamin='L' AND status='aktif' THEN 1 ELSE 0 END) AS laki,
+            SUM(CASE WHEN jenis_kelamin='P' AND status='aktif' THEN 1 ELSE 0 END) AS perempuan
+        FROM anggota")->fetch() ?: [];
+} catch (Throwable $e) { $stat = []; }
+$statTotal = (int)($stat['total'] ?? 0);
+$statAktif = (int)($stat['aktif'] ?? 0);
+$statWajib  = (int)($stat['wajib'] ?? 0);
+$statL      = (int)($stat['laki'] ?? 0);
+$statP      = (int)($stat['perempuan'] ?? 0);
 ?>
 
 <div class="card-header">

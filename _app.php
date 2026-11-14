@@ -19,12 +19,24 @@ if (!(getenv('VERCEL') || getenv('VERCEL_ENV'))) {
 
 // Output buffering: izinkan redirect()/setcookie() dipanggil walau halaman
 // sudah mulai dirender oleh header.php (POST → redirect setelah form).
+// Buffer juga dipakai agar query database bisa dibatch (lihat config/supabase_db.php).
 if (!ob_get_level()) {
     ob_start();
 }
 
 // Load dependencies
 require_once __DIR__ . '/config/database.php';
+
+// Pastikan semua query yang masih diantrekan (batching) dieksekusi
+// sebelum output dikirim ke browser.
+register_shutdown_function(static function (): void {
+    if (function_exists('getDB')) {
+        $db = getDB();
+        if (method_exists($db, 'flush')) {
+            try { $db->flush(); } catch (Throwable $e) { error_log('flush(): ' . $e->getMessage()); }
+        }
+    }
+});
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/auth.php';
 

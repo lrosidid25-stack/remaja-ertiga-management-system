@@ -38,12 +38,26 @@ $stmt = $db->prepare("SELECT t.*, a.nir, a.nama, a.no_hp
 $stmt->execute($params);
 $tagihan = $stmt->fetchAll();
 
-$total = (int)dbFetchColumn($db, "SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=?", [$id]);
-$lunas = (int)dbFetchColumn($db, "SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='lunas'", [$id]);
-$menunggu = (int)dbFetchColumn($db, "SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='menunggu_konfirmasi'", [$id]);
-$belum = (int)dbFetchColumn($db, "SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='belum_bayar'", [$id]);
-$terkumpul = (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal),0) FROM tagihan_iuran WHERE periode_id=? AND status='lunas'", [$id]);
-$target = (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal),0) FROM tagihan_iuran WHERE periode_id=?", [$id]);
+// Ringkasan periode dalam SATU query agregat (sebelumnya 6 query terpisah)
+$total = $lunas = $menunggu = $belum = $terkumpul = $target = 0;
+try {
+    $s = $db->prepare("SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN status='lunas' THEN 1 ELSE 0 END) AS lunas,
+            SUM(CASE WHEN status='menunggu_konfirmasi' THEN 1 ELSE 0 END) AS menunggu,
+            SUM(CASE WHEN status='belum_bayar' THEN 1 ELSE 0 END) AS belum,
+            SUM(CASE WHEN status='lunas' THEN nominal ELSE 0 END) AS terkumpul,
+            COALESCE(SUM(nominal),0) AS target
+        FROM tagihan_iuran WHERE periode_id = ?");
+    $s->execute([$id]);
+    $agg = $s->fetch() ?: [];
+    $total     = (int)($agg['total'] ?? 0);
+    $lunas     = (int)($agg['lunas'] ?? 0);
+    $menunggu  = (int)($agg['menunggu'] ?? 0);
+    $belum     = (int)($agg['belum'] ?? 0);
+    $terkumpul = (int)($agg['terkumpul'] ?? 0);
+    $target    = (int)($agg['target'] ?? 0);
+} catch (Throwable $e) { /* biarkan nol */ }
 $persen = $target > 0 ? round($terkumpul / $target * 100) : 0;
 
 function badgeTagihan(string $s): string {

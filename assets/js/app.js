@@ -1,74 +1,70 @@
 /* ============================================================
-   REMAJA ERTIGA — App JS
+   REMAJA ERTIGA — App JS (ringkas, tanpa dependensi)
    ============================================================ */
 (function () {
     'use strict';
 
-    // Mobile nav toggle
-    var toggle = document.getElementById('navToggle');
-    var menu = document.getElementById('navMenu');
+    var d = document;
+
+    // Menu mobile
+    var toggle = d.getElementById('navToggle');
+    var menu = d.getElementById('navMenu');
     if (toggle && menu) {
         toggle.addEventListener('click', function () {
             menu.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', menu.classList.contains('open'));
         });
     }
 
-    // Auto-hide flash alerts
-    document.querySelectorAll('.alert').forEach(function (el) {
-        setTimeout(function () {
-            el.style.transition = 'opacity .4s, transform .4s';
+    // Alert hilang otomatis
+    setTimeout(function () {
+        d.querySelectorAll('.alert').forEach(function (el) {
+            el.style.transition = 'opacity .35s, transform .35s';
             el.style.opacity = '0';
             el.style.transform = 'translateY(-6px)';
-            setTimeout(function () { el.remove(); }, 420);
-        }, 6000);
-    });
-
-    // Konfirmasi untuk elemen dengan data-confirm
-    document.querySelectorAll('[data-confirm]').forEach(function (el) {
-        el.addEventListener('click', function (e) {
-            if (!window.confirm(el.getAttribute('data-confirm'))) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
+            setTimeout(function () { el.remove(); }, 380);
         });
-    });
+    }, 6000);
 
-    // Format input nominal → hanya angka
-    document.querySelectorAll('input[data-numeric]').forEach(function (el) {
-        el.addEventListener('input', function () {
-            el.value = el.value.replace(/[^\d]/g, '');
-        });
-    });
-
-    // Cetak kartu / halaman
-    document.querySelectorAll('[data-print]').forEach(function (el) {
-        el.addEventListener('click', function (e) {
+    // Konfirmasi (delegasi event: satu listener untuk semua)
+    d.addEventListener('click', function (e) {
+        var el = e.target.closest('[data-confirm]');
+        if (el && !window.confirm(el.getAttribute('data-confirm'))) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        var pr = e.target.closest('[data-print]');
+        if (pr) {
             e.preventDefault();
             window.print();
-        });
+        }
     });
 
-    // Hitung otomatis nominal iuran: nominal/hari × jumlah hari
-    var perHari = document.querySelector('[data-per-hari]');
-    var tglMulai = document.querySelector('[data-tgl-mulai]');
-    var tglSelesai = document.querySelector('[data-tgl-selesai]');
-    var jmlHari = document.querySelector('[data-jml-hari]');
-    var total = document.querySelector('[data-total-nominal]');
+    // Input nominal: hanya angka
+    d.addEventListener('input', function (e) {
+        if (e.target.matches && e.target.matches('input[data-numeric]')) {
+            e.target.value = e.target.value.replace(/[^\d]/g, '');
+        }
+    });
+
+    // Hitung nominal iuran: nominal/hari x jumlah hari
+    var perHari = d.querySelector('[data-per-hari]');
+    var tglMulai = d.querySelector('[data-tgl-mulai]');
+    var tglSelesai = d.querySelector('[data-tgl-selesai]');
+    var jmlHari = d.querySelector('[data-jml-hari]');
+    var total = d.querySelector('[data-total-nominal]');
 
     function hitungIuran() {
         if (!tglMulai || !tglSelesai || !jmlHari) return;
-        var a = tglMulai.value, b = tglSelesai.value;
-        if (!a || !b) return;
-        var d1 = new Date(a), d2 = new Date(b);
-        var hari = Math.floor((d2 - d1) / 86400000) + 1;
+        if (!tglMulai.value || !tglSelesai.value) return;
+        var hari = Math.floor((new Date(tglSelesai.value) - new Date(tglMulai.value)) / 86400000) + 1;
         if (isNaN(hari)) return;
         if (hari < 1) hari = 0;
         jmlHari.value = hari;
         if (perHari && total) {
-            var nominal = parseInt(perHari.getAttribute('data-per-hari'), 10) || 0;
-            var rp = hari * nominal;
+            var rp = hari * (parseInt(perHari.getAttribute('data-per-hari'), 10) || 0);
             total.textContent = 'Rp' + rp.toLocaleString('id-ID');
-            var hidden = document.querySelector('input[name=nominal]');
+            var hidden = d.querySelector('input[name=nominal]');
             if (hidden) hidden.value = rp;
         }
     }

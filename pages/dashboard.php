@@ -3,11 +3,55 @@
  * DASHBOARD — Ringkasan Semua Data
  */
 
-$ringkasan = getDashboardRingkasan();
 $db = getDB();
+$bulanIni = date('Y-m');
 
-// Ringkasan iuran periode terbaru
-$periode = $ringkasan['periode_terbaru'];
+/**
+ * SATU query untuk seluruh angka dashboard.
+ * Di Vercel setiap query = satu perjalanan jaringan (~0,25 s), jadi
+ * menggabungkan 10 query menjadi 1 membuat halaman terasa instan.
+ */
+$d = [];
+try {
+    $s = $db->prepare("SELECT
+        (SELECT id FROM periode_tagihan ORDER BY id DESC LIMIT 1) AS periode_id,
+        (SELECT COUNT(*) FROM anggota WHERE status='aktif') AS total_anggota,
+        (SELECT COUNT(*) FROM anggota WHERE status='aktif' AND wajib_iuran=1) AS total_wajib,
+        (SELECT COUNT(*) FROM tagihan_iuran t WHERE t.periode_id=(SELECT id FROM periode_tagihan ORDER BY id DESC LIMIT 1)) AS tagihan_total,
+        (SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=(SELECT id FROM periode_tagihan ORDER BY id DESC LIMIT 1) AND status='lunas') AS lunas,
+        (SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=(SELECT id FROM periode_tagihan ORDER BY id DESC LIMIT 1) AND status='belum_bayar') AS belum,
+        (SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=(SELECT id FROM periode_tagihan ORDER BY id DESC LIMIT 1) AND status='menunggu_konfirmasi') AS menunggu,
+        (SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=(SELECT id FROM periode_tagihan ORDER BY id DESC LIMIT 1) AND status='ditolak') AS ditolak,
+        (SELECT COALESCE(SUM(nominal),0) FROM pemasukan) AS total_masuk,
+        (SELECT COALESCE(SUM(nominal),0) FROM pengeluaran) AS total_keluar,
+        (SELECT COALESCE(SUM(nominal),0) FROM pemasukan WHERE tanggal LIKE ?) AS masuk_bulan,
+        (SELECT COALESCE(SUM(nominal),0) FROM pengeluaran WHERE tanggal LIKE ?) AS keluar_bulan,
+        (SELECT COUNT(*) FROM kegiatan WHERE status IN ('direncanakan','berlangsung')) AS kegiatan_aktif,
+        (SELECT COUNT(*) FROM kegiatan WHERE status='berlangsung') AS kegiatan_berlangsung");
+    $s->execute([$bulanIni . '%', $bulanIni . '%']);
+    $d = $s->fetch() ?: [];
+} catch (Throwable $e) { $d = []; }
+
+$periode = null;
+if (!empty($d['periode_id'])) {
+    $st = $db->prepare("SELECT * FROM periode_tagihan WHERE id = ?");
+    $st->execute([(int)$d['periode_id']]);
+    $periode = $st->fetch() ?: null;
+}
+
+$ringkasan = [
+    'total_anggota'     => (int)($d['total_anggota'] ?? 0),
+    'total_wajib_iuran' => (int)($d['total_wajib'] ?? 0),
+    'periode_terbaru'   => $periode,
+    'lunas'             => (int)($d['lunas'] ?? 0),
+    'belum_bayar'       => (int)($d['belum'] ?? 0),
+    'menunggu'          => (int)($d['menunggu'] ?? 0),
+    'ditolak'           => (int)($d['ditolak'] ?? 0),
+    'total_pemasukan'   => (int)($d['total_masuk'] ?? 0),
+    'total_pengeluaran' => (int)($d['total_keluar'] ?? 0),
+    'saldo'             => (int)($d['total_masuk'] ?? 0) - (int)($d['total_keluar'] ?? 0),
+    'kegiatan_aktif'    => (int)($d['kegiatan_aktif'] ?? 0),
+];
 
 // 5 aktivitas terakhir
 $aktivitas = $db->query("SELECT l.*, COALESCE(u.nama, 'Publik') as nama_user 
@@ -28,12 +72,13 @@ if ($periode) {
 }
 
 // Kegiatan yang sedang berlangsung
-$kegiatanAktif = $db->query("SELECT * FROM kegiatan WHERE status = 'berlangsung' ORDER BY tgl_mulai DESC LIMIT 3")->fetchAll();
+$kegiatanAktif = [];
+if ((int)($d['kegiatan_berlangsung'] ?? 0) > 0) {
+    $kegiatanAktif = $db->query("SELECT * FROM kegiatan WHERE status = 'berlangsung' ORDER BY tgl_mulai DESC LIMIT 3")->fetchAll();
+}
 
-// Pemasukan & pengeluaran bulan ini
-$bulanIni = date('Y-m');
-$pemasukanBulan = (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal), 0) FROM pemasukan WHERE tanggal LIKE ?", [$bulanIni . '%']);
-$pengeluaranBulan = (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal), 0) FROM pengeluaran WHERE tanggal LIKE ?", [$bulanIni . '%']);
+$pemasukanBulan   = (int)($d['masuk_bulan'] ?? 0);
+$pengeluaranBulan = (int)($d['keluar_bulan'] ?? 0);
 ?>
 
 <div class="card-header">

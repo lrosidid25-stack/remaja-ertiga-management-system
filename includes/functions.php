@@ -9,9 +9,39 @@ function formatTanggal(string $tanggal, bool $denganHari = false): string {
 }
 function formatTanggalPendek(string $tanggal): string { if(empty($tanggal)) return '-'; return date('d/m/Y', strtotime($tanggal)); }
 
-function getPengaturan(string $kunci): string { $db=getDB(); $s=$db->prepare("SELECT nilai FROM pengaturan WHERE kunci=?"); $s->execute([$kunci]); $r=$s->fetch(); return $r?$r['nilai']:''; }
-function getAllPengaturan(): array { $db=getDB(); $s=$db->query("SELECT kunci,nilai FROM pengaturan"); $r=[]; while($row=$s->fetch()) $r[$row['kunci']]=$row['nilai']; return $r; }
-function updatePengaturan(string $kunci, string $nilai): void { $db=getDB(); $db->prepare("INSERT INTO pengaturan (kunci,nilai) VALUES (?,?) ON CONFLICT(kunci) DO UPDATE SET nilai=?")->execute([$kunci,$nilai,$nilai]); }
+/**
+ * Cache pengaturan per-request: header, footer, dan halaman sering
+ * memanggil fungsi ini berkali-kali. Di Vercel setiap query = satu
+ * perjalanan jaringan, jadi cache ini memotong 2–3 request per halaman.
+ */
+$GLOBALS['re_pengaturan_cache'] = null;
+
+function getAllPengaturan(): array {
+    if (is_array($GLOBALS['re_pengaturan_cache'] ?? null)) return $GLOBALS['re_pengaturan_cache'];
+    $db = getDB();
+    $data = [];
+    try {
+        $s = $db->query("SELECT kunci,nilai FROM pengaturan");
+        while ($row = $s->fetch()) $data[$row['kunci']] = $row['nilai'];
+    } catch (Throwable $e) {
+        $data = [];
+    }
+    $GLOBALS['re_pengaturan_cache'] = $data;
+    return $data;
+}
+/** Reset cache pengaturan (dipakai setelah updatePengaturan). */
+function reResetPengaturanCache(): void { $GLOBALS['re_pengaturan_cache'] = null; }
+function getPengaturan(string $kunci): string {
+    $all = getAllPengaturan();
+    return $all[$kunci] ?? '';
+}
+function updatePengaturan(string $kunci, string $nilai): void {
+    $db = getDB();
+    $db->prepare("INSERT INTO pengaturan (kunci,nilai) VALUES (?,?) ON CONFLICT(kunci) DO UPDATE SET nilai=?")
+       ->execute([$kunci, $nilai, $nilai]);
+    // Buang cache per-request (statik pada getAllPengaturan)
+    if (function_exists('reResetPengaturanCache')) reResetPengaturanCache();
+}
 
 function generateNIR(): string { $db=getDB(); do { $nir=''; for($i=0;$i<12;$i++) $nir.=rand(0,9); $s=$db->prepare("SELECT COUNT(*) FROM anggota WHERE nir=?"); $s->execute([$nir]); } while($s->fetchColumn()>0); return $nir; }
 function selisihHari(string $tgl1, string $tgl2): int { return (int)(new DateTime($tgl1))->diff(new DateTime($tgl2))->days; }
@@ -118,22 +148,59 @@ function getTotalIuranLunas(int $periodeId): int { $db=getDB(); return (int)dbFe
 function getTotalTagihan(int $periodeId): int { $db=getDB(); return (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal),0) FROM tagihan_iuran WHERE periode_id=?", [$periodeId]); }
 
 function getDashboardRingkasan(): array {
-    $db=getDB(); $totalAnggota=$db->query("SELECT COUNT(*) FROM anggota WHERE status='aktif'")->fetchColumn();
-    $totalWajibIuran=$db->query("SELECT COUNT(*) FROM anggota WHERE status='aktif' AND wajib_iuran=1")->fetchColumn();
-    $periode=$db->query("SELECT * FROM periode_tagihan ORDER BY id DESC LIMIT 1")->fetch();
-    $totalLunas=0;$totalBelum=0;$totalMenunggu=0;$totalDitolak=0;
-    if($periode){
-        $pid=(int)$periode['id'];
-        $totalLunas=(int)dbFetchColumn($db,"SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='lunas'",[$pid]);
-        $totalBelum=(int)dbFetchColumn($db,"SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='belum_bayar'",[$pid]);
-        $totalMenunggu=(int)dbFetchColumn($db,"SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='menunggu_konfirmasi'",[$pid]);
-        $totalDitolak=(int)dbFetchColumn($db,"SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='ditolak'",[$pid]);
+    $db = getDB();
+
+    // Satu query agregat untuk semua angka statistik (hemat 6 request di Vercel)
+    $row = [];
+    try {
+        $stmt = $db->query("SELECT
+                (SELECT COUNT(*) FROM anggota WHERE status='aktif') AS total_anggota,
+                (SELECT COUNT(*) FROM anggota WHERE status='aktif' AND wajib_iuran=1) AS total_wajib,
+                (SELECT COALESCE(SUM(nominal),0) FROM pemasukan) AS total_masuk,
+                (SELECT COALESCE(SUM(nominal),0) FROM pengeluaran) AS total_keluar,
+                (SELECT COUNT(*) FROM kegiatan WHERE status IN ('direncanakan','berlangsung')) AS kegiatan_aktif");
+        $row = $stmt->fetch() ?: [];
+    } catch (Throwable $e) {
+        $row = [];
     }
-    $totalPemasukan=(int)$db->query("SELECT COALESCE(SUM(nominal),0) FROM pemasukan")->fetchColumn();
-    $totalPengeluaran=(int)$db->query("SELECT COALESCE(SUM(nominal),0) FROM pengeluaran")->fetchColumn();
-    $saldo=$totalPemasukan-$totalPengeluaran;
-    $kegiatanAktif=$db->query("SELECT COUNT(*) FROM kegiatan WHERE status IN ('direncanakan','berlangsung')")->fetchColumn();
-    return ['total_anggota'=>(int)$totalAnggota,'total_wajib_iuran'=>(int)$totalWajibIuran,'periode_terbaru'=>$periode,'lunas'=>$totalLunas,'belum_bayar'=>$totalBelum,'menunggu'=>$totalMenunggu,'ditolak'=>$totalDitolak,'total_pemasukan'=>$totalPemasukan,'total_pengeluaran'=>$totalPengeluaran,'saldo'=>$saldo,'kegiatan_aktif'=>$kegiatanAktif];
+
+    $periode = $db->query("SELECT * FROM periode_tagihan ORDER BY id DESC LIMIT 1")->fetch();
+
+    $totalLunas = $totalBelum = $totalMenunggu = $totalDitolak = 0;
+    if ($periode) {
+        // Satu query untuk 4 status sekaligus
+        try {
+            $s = $db->prepare("SELECT
+                    SUM(CASE WHEN status='lunas' THEN 1 ELSE 0 END) AS lunas,
+                    SUM(CASE WHEN status='belum_bayar' THEN 1 ELSE 0 END) AS belum,
+                    SUM(CASE WHEN status='menunggu_konfirmasi' THEN 1 ELSE 0 END) AS menunggu,
+                    SUM(CASE WHEN status='ditolak' THEN 1 ELSE 0 END) AS ditolak
+                FROM tagihan_iuran WHERE periode_id = ?");
+            $s->execute([(int)$periode['id']]);
+            $st = $s->fetch() ?: [];
+            $totalLunas    = (int)($st['lunas'] ?? 0);
+            $totalBelum    = (int)($st['belum'] ?? 0);
+            $totalMenunggu = (int)($st['menunggu'] ?? 0);
+            $totalDitolak  = (int)($st['ditolak'] ?? 0);
+        } catch (Throwable $e) { /* biarkan 0 */ }
+    }
+
+    $totalPemasukan   = (int)($row['total_masuk'] ?? 0);
+    $totalPengeluaran = (int)($row['total_keluar'] ?? 0);
+
+    return [
+        'total_anggota'     => (int)($row['total_anggota'] ?? 0),
+        'total_wajib_iuran' => (int)($row['total_wajib'] ?? 0),
+        'periode_terbaru'   => $periode,
+        'lunas'             => $totalLunas,
+        'belum_bayar'       => $totalBelum,
+        'menunggu'          => $totalMenunggu,
+        'ditolak'           => $totalDitolak,
+        'total_pemasukan'   => $totalPemasukan,
+        'total_pengeluaran' => $totalPengeluaran,
+        'saldo'             => $totalPemasukan - $totalPengeluaran,
+        'kegiatan_aktif'    => (int)($row['kegiatan_aktif'] ?? 0),
+    ];
 }
 
 function getStatusIuranByNIR(string $nir): ?array {

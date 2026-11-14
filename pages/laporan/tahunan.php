@@ -19,12 +19,32 @@ sort($tahunList);
 
 $namaBulan = [1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
+// Rekap 12 bulan dalam SATU query (sebelumnya 24 query — paling lambat di Vercel)
 $data = [];
-for ($m = 1; $m <= 12; $m++) {
-    $like = sprintf('%04d-%02d%%', $tahun, $m);
-    $masuk = (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal),0) FROM pemasukan WHERE tanggal LIKE ?", [$like]);
-    $keluar = (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal),0) FROM pengeluaran WHERE tanggal LIKE ?", [$like]);
-    $data[$m] = ['masuk' => $masuk, 'keluar' => $keluar, 'selisih' => $masuk - $keluar];
+for ($m = 1; $m <= 12; $m++) $data[$m] = ['masuk' => 0, 'keluar' => 0, 'selisih' => 0];
+try {
+    $s = $db->prepare("SELECT
+            CAST(substr(tanggal,6,2) AS INTEGER) AS bulan,
+            COALESCE(SUM(nominal),0) AS total
+        FROM pemasukan WHERE tanggal LIKE ? GROUP BY substr(tanggal,6,2)");
+    $s->execute([$tahun . '-%']);
+    foreach ($s->fetchAll() as $r) {
+        $m = (int)$r['bulan'];
+        if ($m >= 1 && $m <= 12) $data[$m]['masuk'] = (int)$r['total'];
+    }
+
+    $s = $db->prepare("SELECT
+            CAST(substr(tanggal,6,2) AS INTEGER) AS bulan,
+            COALESCE(SUM(nominal),0) AS total
+        FROM pengeluaran WHERE tanggal LIKE ? GROUP BY substr(tanggal,6,2)");
+    $s->execute([$tahun . '-%']);
+    foreach ($s->fetchAll() as $r) {
+        $m = (int)$r['bulan'];
+        if ($m >= 1 && $m <= 12) $data[$m]['keluar'] = (int)$r['total'];
+    }
+} catch (Throwable $e) { /* biarkan nol */ }
+foreach ($data as $m => $row) {
+    $data[$m]['selisih'] = $row['masuk'] - $row['keluar'];
 }
 
 $totalMasuk = array_sum(array_column($data, 'masuk'));

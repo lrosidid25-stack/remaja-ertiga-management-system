@@ -5,14 +5,25 @@
  * ============================================================
  *
  * Di Vercel (serverless) aplikasi tidak bisa membuka koneksi TCP ke
- * PostgreSQL, sehingga semua SQL dikirim lewat PostgREST ke fungsi
- * PostgreSQL `public.re_query(q text)` yang menjalankannya apa adanya
- * dan mengembalikan hasilnya sebagai JSON.
+ * PostgreSQL, sehingga SQL dikirim lewat PostgREST ke fungsi PostgreSQL
+ * `public.re_query_batch(qs jsonb)` yang menjalankannya apa adanya dan
+ * mengembalikan hasilnya sebagai JSON.
  *
- * Dengan pendekatan ini JOIN, subquery, agregat, CASE, BETWEEN dan
- * ON CONFLICT tetap berjalan persis seperti di SQLite lokal — tidak ada
- * emulasi SQL di PHP. Parameter di-inline sebagai literal PostgreSQL
- * yang sudah di-escape dengan benar.
+ * ## Kenapa "batch"?
+ * Satu halaman butuh 9–19 query. Kalau tiap query satu HTTP request,
+ * latensi menumpuk (Vercel iad1 → Supabase ap-southeast-1 ≈ 250 ms per
+ * request). Karena PHP membuat seluruh halaman sampai output pertama
+ * dikirim, query-query tersebut bisa dikumpulkan dulu lalu dikirim
+ * SEKALI dalam satu request. Hasilnya sama persis, tapi latensinya
+ * jadi satu kali perjalanan pulang-pergi, bukan belasan.
+ *
+ * Alurnya:
+ *   1. Halaman memanggil $db->query()/prepare() seperti biasa.
+ *   2. Selama output buffering aktif (sebelum byte pertama dikirim),
+ *      query ditunda dan dicatat.
+ *   3. Saat hasilnya benar-benar dibutuhkan (fetch, fetchAll, rowCount) ATAU
+ *      buffer akan dikirim (register_shutdown_function), antrean
+ *      dieksekusi dalam satu request batch.
  *
  * API meniru PDO:
  *   $db->prepare($sql)->execute($params)  → SupabaseRpcStatement
@@ -32,17 +43,20 @@ class SupabaseRpcStatement
         private SupabaseRpcDatabase $db,
         private string $sql,
         private array $params = [],
-        ?array $prefetched = null
-    ) {
-        if ($prefetched !== null) {
-            $this->rows = $prefetched;
-            $this->affected = count($prefetched);
-        }
-    }
+        private ?int $pendingId = null
+    ) {}
 
+    /** Antrekan / jalankan query lalu simpan hasilnya. */
     public function execute(array $params = []): bool
     {
         if ($params) $this->params = array_values($params);
+
+        if ($this->db->canDefer() && $this->pendingId === null && $this->db->isReadOnly($this->sql)) {
+            // Baca: boleh ditunda sampai hasilnya diperlukan
+            $this->pendingId = $this->db->enqueue($this->sql, $this->params);
+            return true;
+        }
+
         [$rows, $affected, $insertId] = $this->db->runSql($this->sql, $this->params);
         $this->rows = $rows;
         $this->affected = $affected;
@@ -50,8 +64,22 @@ class SupabaseRpcStatement
         return true;
     }
 
+    /** Ambil hasil (kalau masih ditunda, flush batch dulu). */
+    private function resolve(): void
+    {
+        if ($this->pendingId === null) return;
+
+        $id = $this->pendingId;
+        $this->pendingId = null;
+
+        [$rows, $affected] = $this->db->fetchPending($id);
+        $this->rows = $rows;
+        $this->affected = $affected;
+    }
+
     public function fetch(): array|false
     {
+        $this->resolve();
         if (!$this->rows) return false;
         $row = array_shift($this->rows);
         return is_array($row) ? $row : false;
@@ -59,6 +87,7 @@ class SupabaseRpcStatement
 
     public function fetchAll(): array
     {
+        $this->resolve();
         $rows = $this->rows;
         $this->rows = [];
         return $rows;
@@ -72,13 +101,23 @@ class SupabaseRpcStatement
         return $vals[$col] ?? 0;
     }
 
-    public function rowCount(): int { return $this->affected; }
+    public function rowCount(): int
+    {
+        $this->resolve();
+        return $this->affected;
+    }
 }
 
 class SupabaseRpcDatabase
 {
     private string $insertId = '';
     private bool $inTx = false;
+
+    /** @var array<int, array{sql:string}> query yang menunggu dieksekusi */
+    private array $queue = [];
+    /** @var array<int, array{rows:array, affected:int}> hasil per id */
+    private array $results = [];
+    private int $nextId = 0;
 
     // ============================================================
     // API kompatibel PDO
@@ -92,7 +131,7 @@ class SupabaseRpcDatabase
 
     public function query(string $sql): SupabaseRpcStatement
     {
-        // PDO::query() langsung mengeksekusi; begitu pula di sini.
+        // PDO::query() langsung mengeksekusi; di sini hasilnya boleh ditunda.
         $stmt = new SupabaseRpcStatement($this, trim($sql), []);
         $stmt->execute();
         return $stmt;
@@ -120,6 +159,67 @@ class SupabaseRpcDatabase
     public function inTransaction(): bool { return $this->inTx; }
 
     // ============================================================
+    // ANTREAN (batching)
+    // ============================================================
+    /**
+     * Query baca boleh ditunda selama output belum dikirim ke browser.
+     * Ini yang membuat 19 query dashboard menjadi 1 request jaringan.
+     */
+    public function canDefer(): bool
+    {
+        if (getenv('RE_NO_BATCH')) return false;
+        // Kalau header sudah terkirim, output sudah jalan → jangan ditunda
+        return !headers_sent();
+    }
+
+    public function isReadOnly(string $sql): bool
+    {
+        return (bool)preg_match('/^\s*(SELECT|WITH)\b/i', $sql);
+    }
+
+    public function enqueue(string $sql, array $params): int
+    {
+        $translated = $this->prepareSql($sql, $params);
+        $id = $this->nextId++;
+        $this->queue[$id] = ['sql' => $translated];
+        $this->results[$id] = ['rows' => [], 'affected' => 0];
+
+        // Eksekusi lebih awal jika antrean sudah cukup besar
+        if (count($this->queue) >= 60) $this->flush();
+        return $id;
+    }
+
+    public function fetchPending(int $id): array
+    {
+        $this->flush();
+        $res = $this->results[$id] ?? ['rows' => [], 'affected' => 0];
+        unset($this->results[$id]);
+        return [$res['rows'], $res['affected']];
+    }
+
+    /** Kirim semua query yang menunggu dalam satu request HTTP. */
+    public function flush(): void
+    {
+        if (!$this->queue) return;
+
+        $batch = $this->queue;
+        $this->queue = [];
+
+        $payload = array_map(fn($item) => $item['sql'], array_values($batch));
+        $responses = $this->rpcBatch($payload);
+
+        $i = 0;
+        foreach (array_keys($batch) as $id) {
+            $rows = $responses[$i] ?? [];
+            $this->results[$id] = [
+                'rows' => is_array($rows) ? $rows : [],
+                'affected' => is_array($rows) ? count($rows) : 0,
+            ];
+            $i++;
+        }
+    }
+
+    // ============================================================
     // EKSEKUSI
     // ============================================================
     /**
@@ -127,14 +227,14 @@ class SupabaseRpcDatabase
      */
     public function runSql(string $sql, array $params = []): array
     {
-        $sql = preg_replace('/\s+/', ' ', $sql);
+        // Tulis harus melihat data terbaru → flush antrean baca dulu
+        $this->flush();
+
+        $sql = $this->prepareSql($sql, $params);
         if ($sql === '') return [[], 0, null];
 
-        $sql = $this->prefixTables($sql);
-        $sql = $this->replacePlaceholders($sql, array_values($params));
-
         $verb = strtoupper(strtok(ltrim($sql), " \t\n\r("));
-        $rows = $this->rpc($sql);
+        $rows = $this->rpcBatch([$sql])[0] ?? [];
 
         if (in_array($verb, ['INSERT', 'UPDATE', 'DELETE'], true)) {
             $insertId = null;
@@ -147,6 +247,15 @@ class SupabaseRpcDatabase
         }
 
         return [$rows, count($rows), null];
+    }
+
+    /** Normalisasi SQL: rapikan spasi, beri prefix tabel, isi parameter. */
+    public function prepareSql(string $sql, array $params): string
+    {
+        $sql = preg_replace('/\s+/', ' ', trim($sql));
+        if ($sql === '') return '';
+        $sql = $this->prefixTables($sql);
+        return $this->replacePlaceholders($sql, array_values($params));
     }
 
     /**
@@ -217,29 +326,39 @@ class SupabaseRpcDatabase
         return "'" . str_replace(["'", "\0"], ["''", ''], (string)$val) . "'";
     }
 
-    /** Kirim SQL ke Supabase lewat PostgREST RPC re_query. */
-    private function rpc(string $sql): array
+    /** Kirim satu atau banyak SQL sekaligus ke Supabase. */
+    private function rpcBatch(array $queries): array
     {
-        $url = rtrim(SUPABASE_URL, '/') . '/rest/v1/rpc/re_query';
         $key = (defined('SUPABASE_SERVICE_KEY') && SUPABASE_SERVICE_KEY !== '')
             ? SUPABASE_SERVICE_KEY
             : SUPABASE_ANON_KEY;
 
-        $payload = json_encode(['q' => $sql], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $headers = [
+            'apikey: ' . $key,
+            'Authorization: Bearer ' . $key,
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ];
+
+        // Satu query → RPC biasa; banyak query → RPC batch
+        if (count($queries) === 1) {
+            $url = rtrim(SUPABASE_URL, '/') . '/rest/v1/rpc/re_query';
+            $payload = json_encode(['q' => $queries[0]], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } else {
+            $url = rtrim(SUPABASE_URL, '/') . '/rest/v1/rpc/re_query_batch';
+            $payload = json_encode(['qs' => array_values($queries)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $payload,
-            CURLOPT_HTTPHEADER     => [
-                'apikey: ' . $key,
-                'Authorization: Bearer ' . $key,
-                'Content-Type: application/json',
-                'Accept: application/json',
-            ],
-            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_TIMEOUT        => 25,
             CURLOPT_CONNECTTIMEOUT => 8,
+            // Koneksi dipertahankan untuk request berikutnya dalam satu invocation
+            CURLOPT_TCP_KEEPALIVE  => 1,
         ]);
 
         $raw = curl_exec($ch);
@@ -259,6 +378,13 @@ class SupabaseRpcDatabase
         }
 
         if (is_string($decoded)) $decoded = json_decode($decoded, true);
-        return is_array($decoded) ? $decoded : [];
+        if (!is_array($decoded)) return [];
+
+        // RPC batch mengembalikan array hasil per query
+        if (count($queries) > 1) {
+            return array_map(fn($r) => is_array($r) ? $r : [], $decoded);
+        }
+
+        return [$decoded];
     }
 }

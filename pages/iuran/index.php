@@ -12,17 +12,29 @@ $periode = $db->query("SELECT * FROM periode_tagihan ORDER BY id DESC LIMIT 1")-
 // Hitung statistik tiap periode
 $periodeList = $db->query("SELECT * FROM periode_tagihan ORDER BY id DESC LIMIT 24")->fetchAll();
 
+// Semua statistik periode diambil dalam SATU query agregat (GROUP BY).
+// Sebelumnya 6 query per periode → bisa 100+ request di Vercel.
 $ringkasan = [];
-foreach ($periodeList as $p) {
-    $pl = (int)$p['id'];
-    $totalTagihan = (int)dbFetchColumn($db, "SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=?", [$pl]);
-    $lunas = (int)dbFetchColumn($db, "SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='lunas'", [$pl]);
-    $menunggu = (int)dbFetchColumn($db, "SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='menunggu_konfirmasi'", [$pl]);
-    $belum = (int)dbFetchColumn($db, "SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='belum_bayar'", [$pl]);
-    $terkumpul = (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal),0) FROM tagihan_iuran WHERE periode_id=? AND status='lunas'", [$pl]);
-    $target = (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal),0) FROM tagihan_iuran WHERE periode_id=?", [$pl]);
-    $ringkasan[$pl] = compact('totalTagihan', 'lunas', 'menunggu', 'belum', 'terkumpul', 'target');
-}
+try {
+    $agg = $db->query("SELECT periode_id,
+            COUNT(*) AS totalTagihan,
+            SUM(CASE WHEN status='lunas' THEN 1 ELSE 0 END) AS lunas,
+            SUM(CASE WHEN status='menunggu_konfirmasi' THEN 1 ELSE 0 END) AS menunggu,
+            SUM(CASE WHEN status='belum_bayar' THEN 1 ELSE 0 END) AS belum,
+            SUM(CASE WHEN status='lunas' THEN nominal ELSE 0 END) AS terkumpul,
+            COALESCE(SUM(nominal),0) AS target
+        FROM tagihan_iuran GROUP BY periode_id")->fetchAll();
+    foreach ($agg as $row) {
+        $ringkasan[(int)$row['periode_id']] = [
+            'totalTagihan' => (int)$row['totalTagihan'],
+            'lunas'        => (int)$row['lunas'],
+            'menunggu'     => (int)$row['menunggu'],
+            'belum'        => (int)$row['belum'],
+            'terkumpul'    => (int)$row['terkumpul'],
+            'target'       => (int)$row['target'],
+        ];
+    }
+} catch (Throwable $e) { $ringkasan = []; }
 
 $r = $ringkasan[(int)($periode['id'] ?? 0)] ?? null;
 $persen = ($r && $r['target'] > 0) ? round($r['terkumpul'] / $r['target'] * 100) : 0;
