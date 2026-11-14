@@ -3,7 +3,7 @@
  * FOOTER
  */
 $pengaturan = getAllPengaturan();
-$namaOrg = $pengaturan['nama_organisasi'] ?? 'Remaja Ertiga';
+$namaOrg = ($pengaturan['nama_organisasi'] ?? '') ?: 'Remaja Ertiga';
 $dukuh = $pengaturan['dukuh'] ?? '';
 $rt = $pengaturan['rt'] ?? '';
 $rw = $pengaturan['rw'] ?? '';

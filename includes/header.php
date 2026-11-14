@@ -4,7 +4,7 @@
  */
 
 $pengaturan = getAllPengaturan();
-$namaOrg = $pengaturan['nama_organisasi'] ?? 'Remaja Ertiga';
+$namaOrg = ($pengaturan['nama_organisasi'] ?? '') ?: 'Remaja Ertiga';
 ?>
 <!DOCTYPE html>
 <html lang="id">

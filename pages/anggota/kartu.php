@@ -11,7 +11,7 @@ $stmt->execute([$id]);
 $anggota = $stmt->fetch();
 
 $pengaturan = getAllPengaturan();
-$namaOrg = $pengaturan['nama_organisasi'] ?: 'Remaja Ertiga';
+$namaOrg = ($pengaturan['nama_organisasi'] ?? '') ?: 'Remaja Ertiga';
 $alamatParts = array_filter([
     $pengaturan['dukuh'] ?? '',
     !empty($pengaturan['rt']) ? 'RT ' . $pengaturan['rt'] : '',

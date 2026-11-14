@@ -39,7 +39,7 @@ if (isset($_GET['ekspor'])) {
 }
 
 $pengaturan = getAllPengaturan();
-$namaOrg = $pengaturan['nama_organisasi'] ?: 'Remaja Ertiga';
+$namaOrg = ($pengaturan['nama_organisasi'] ?? '') ?: 'Remaja Ertiga';
 ?>
 
 <div class="card-header no-print">

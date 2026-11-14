@@ -5,7 +5,7 @@
  */
 
 $pengaturan = getAllPengaturan();
-$namaOrg = $pengaturan['nama_organisasi'] ?? 'Remaja Ertiga';
+$namaOrg = ($pengaturan['nama_organisasi'] ?? '') ?: 'Remaja Ertiga';
 $db = getDB();
 
 $jmlUser = (int)$db->query("SELECT COUNT(*) FROM users")->fetchColumn();

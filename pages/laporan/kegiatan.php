@@ -22,7 +22,7 @@ $perStatus = ['direncanakan' => 0, 'berlangsung' => 0, 'selesai' => 0, 'dibatalk
 foreach ($list as $k) if (isset($perStatus[$k['status']])) $perStatus[$k['status']]++;
 
 $pengaturan = getAllPengaturan();
-$namaOrg = $pengaturan['nama_organisasi'] ?: 'Remaja Ertiga';
+$namaOrg = ($pengaturan['nama_organisasi'] ?? '') ?: 'Remaja Ertiga';
 ?>
 
 <div class="card-header no-print">

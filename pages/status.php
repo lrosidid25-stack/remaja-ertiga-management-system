@@ -31,7 +31,7 @@ try {
 
 $adaMasalah = !$dbOk || count(array_filter($hasil, fn($h) => !$h['ok'])) > 0;
 $pengaturan = getAllPengaturan();
-$namaOrg = $pengaturan['nama_organisasi'] ?: 'Remaja Ertiga';
+$namaOrg = ($pengaturan['nama_organisasi'] ?? '') ?: 'Remaja Ertiga';
 ?>
 <!DOCTYPE html>
 <html lang="id">

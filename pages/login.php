@@ -5,7 +5,7 @@
  */
 
 $pengaturan = getAllPengaturan();
-$namaOrg = $pengaturan['nama_organisasi'] ?: 'Remaja Ertiga';
+$namaOrg = ($pengaturan['nama_organisasi'] ?? '') ?: 'Remaja Ertiga';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
