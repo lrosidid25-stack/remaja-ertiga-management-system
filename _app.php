@@ -17,6 +17,12 @@ if (!(getenv('VERCEL') || getenv('VERCEL_ENV'))) {
     }
 }
 
+// Output buffering: izinkan redirect()/setcookie() dipanggil walau halaman
+// sudah mulai dirender oleh header.php (POST → redirect setelah form).
+if (!ob_get_level()) {
+    ob_start();
+}
+
 // Load dependencies
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
@@ -33,7 +39,7 @@ $page = $_GET['page'] ?? 'home';
 // ============================================================
 
 // --- HALAMAN PUBLIK (tanpa login) ---
-$publicPages = ['home', 'cek', 'login', 'logout', 'lupa-nir'];
+$publicPages = ['home', 'cek', 'login', 'logout', 'lupa-nir', 'status'];
 
 if (!isLoggedIn() && !in_array($page, $publicPages)) {
     // Redirect ke login jika belum login dan halaman bukan publik
@@ -68,6 +74,11 @@ switch ($page) {
 
     case 'lupa-nir':
         $file = __DIR__ . '/pages/lupa-nir.php';
+        break;
+
+    case 'status':
+        // Diagnostik koneksi database (publik, tanpa data sensitif)
+        $file = __DIR__ . '/pages/status.php';
         break;
 
     // ============================================================
@@ -272,7 +283,7 @@ switch ($page) {
 
 if ($file && file_exists($file)) {
     // Semua halaman admin (kecuali public) pakai header/footer
-    $isPublic = in_array($page, ['home', 'cek', 'login', 'lupa-nir']);
+    $isPublic = in_array($page, ['home', 'cek', 'login', 'lupa-nir', 'status']);
     if (!$isPublic) {
         require_once __DIR__ . '/includes/header.php';
     }

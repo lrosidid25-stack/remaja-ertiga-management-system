@@ -152,7 +152,7 @@ function seedDefaultData(PDO $db): void {
     }
     $count = $db->query("SELECT COUNT(*) FROM jenis_iuran")->fetchColumn();
     if ($count == 0) {
-        $db->exec("INSERT INTO jenis_iuran (name, nominal_per_hari, tgl_berlaku, keterangan) VALUES
+        $db->exec("INSERT INTO jenis_iuran (nama, nominal_per_hari, tgl_berlaku, keterangan) VALUES
             ('Iuran Harian', 500, '2026-07-01', 'Iuran harian anggota Remaja Ertiga')
         ");
     }

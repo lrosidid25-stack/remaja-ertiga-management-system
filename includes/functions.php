@@ -17,17 +17,19 @@ function generateNIR(): string { $db=getDB(); do { $nir=''; for($i=0;$i<12;$i++)
 function selisihHari(string $tgl1, string $tgl2): int { return (int)(new DateTime($tgl1))->diff(new DateTime($tgl2))->days; }
 
 function setFlash(string $tipe, string $pesan): void {
-    // Cookie-based flash (kompatibel Vercel & lokal)
-    $data = json_encode(['tipe' => $tipe, 'pesan' => $pesan]);
-    setcookie('re_flash', $data, [
-        'expires' => time() + 60,
-        'path' => '/',
-        'httponly' => true,
-        'samesite' => 'Lax',
-        'secure' => isset($_SERVER['HTTPS']),
-    ]);
-    // Juga set ke session untuk backward compatibility lokal
+    // Simpan di session (lokal & Vercel). Cookie hanya dipakai bila header
+    // belum terkirim, agar tidak memicu "headers already sent".
     $_SESSION['flash'] = ['tipe' => $tipe, 'pesan' => $pesan];
+    if (!headers_sent()) {
+        $data = json_encode(['tipe' => $tipe, 'pesan' => $pesan]);
+        setcookie('re_flash', $data, [
+            'expires' => time() + 60,
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+            'secure' => isset($_SERVER['HTTPS']),
+        ]);
+    }
 }
 function getFlash(): string {
     // Cek cookie dulu (Vercel), fallback ke session (lokal)
@@ -39,14 +41,16 @@ function getFlash(): string {
     if (!$flashData && isset($_SESSION['flash'])) {
         $flashData = $_SESSION['flash'];
     }
-    // Selalu hapus cookie & session flash
-    setcookie('re_flash', '', [
-        'expires' => time() - 3600,
-        'path' => '/',
-        'httponly' => true,
-        'samesite' => 'Lax',
-        'secure' => isset($_SERVER['HTTPS']),
-    ]);
+    // Hapus cookie & session flash
+    if (!headers_sent() && isset($_COOKIE['re_flash'])) {
+        setcookie('re_flash', '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+            'secure' => isset($_SERVER['HTTPS']),
+        ]);
+    }
     unset($_SESSION['flash']);
     if ($flashData) {
         $w = match($flashData['tipe']) {
@@ -59,15 +63,27 @@ function getFlash(): string {
 }
 function redirect(string $url): never { header("Location: {$url}"); exit; }
 
+/**
+ * Jalankan query dengan parameter lalu ambil nilai kolom pertama.
+ * Aman untuk SQLite (lokal) maupun SupabaseDB (Vercel).
+ */
+function dbFetchColumn($db, string $sql, array $params = []) {
+    $stmt = $db->prepare($sql);
+    if ($stmt === false) return 0;
+    $stmt->execute($params);
+    return $stmt->fetchColumn();
+}
+
 function uploadFile(array $file, string $targetDir, string $prefix = ''): string|false {
-    if($file['error']!==UPLOAD_ERR_OK) return false;
-    $ext=strtolower(pathinfo($file['name'],PATHINFO_EXTENSION));
+    if(($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) return false;
+    $ext=strtolower(pathinfo($file['name'] ?? '',PATHINFO_EXTENSION));
     if(!in_array($ext,['jpg','jpeg','png','gif','webp'])) return false;
-    if($file['size']>2*1024*1024) return false;
+    if(($file['size'] ?? 0) > 2*1024*1024) return false;
+    if(!is_dir($targetDir) && !@mkdir($targetDir, 0775, true)) return false;
     $filename=$prefix.date('Ymd_His').'_'.bin2hex(random_bytes(4)).'.'.$ext;
     $dest=$targetDir.'/'.$filename;
-    
-    // Simpan lokal
+
+    // Simpan lokal (atau ke /tmp bila filesystem read-only, mis. Vercel)
     if(!move_uploaded_file($file['tmp_name'],$dest)) return false;
     
     // Upload ke Google Drive (jika service account tersedia)
@@ -98,18 +114,21 @@ function roleGenerateTagihan(): array { return ['super_admin','bendahara','wakil
 
 function getNamaUser(int $id): string { $db=getDB(); $s=$db->prepare("SELECT nama FROM users WHERE id=?"); $s->execute([$id]); $r=$s->fetch(); return $r?$r['nama']:'-'; }
 function getNamaAnggota(int $id): string { $db=getDB(); $s=$db->prepare("SELECT nama FROM anggota WHERE id=?"); $s->execute([$id]); $r=$s->fetch(); return $r?$r['nama']:'-'; }
-function getTotalIuranLunas(int $periodeId): int { $db=getDB(); return (int)$db->prepare("SELECT COALESCE(SUM(nominal),0) FROM tagihan_iuran WHERE periode_id=? AND status='lunas'")->fetchColumn([$periodeId]); }
-function getTotalTagihan(int $periodeId): int { $db=getDB(); return (int)$db->prepare("SELECT COALESCE(SUM(nominal),0) FROM tagihan_iuran WHERE periode_id=?")->fetchColumn([$periodeId]); }
+function getTotalIuranLunas(int $periodeId): int { $db=getDB(); return (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal),0) FROM tagihan_iuran WHERE periode_id=? AND status='lunas'", [$periodeId]); }
+function getTotalTagihan(int $periodeId): int { $db=getDB(); return (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal),0) FROM tagihan_iuran WHERE periode_id=?", [$periodeId]); }
 
 function getDashboardRingkasan(): array {
     $db=getDB(); $totalAnggota=$db->query("SELECT COUNT(*) FROM anggota WHERE status='aktif'")->fetchColumn();
     $totalWajibIuran=$db->query("SELECT COUNT(*) FROM anggota WHERE status='aktif' AND wajib_iuran=1")->fetchColumn();
     $periode=$db->query("SELECT * FROM periode_tagihan ORDER BY id DESC LIMIT 1")->fetch();
     $totalLunas=0;$totalBelum=0;$totalMenunggu=0;$totalDitolak=0;
-    if($periode){ $totalLunas=(int)$db->prepare("SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='lunas'")->fetchColumn();
-        $totalBelum=(int)$db->prepare("SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='belum_bayar'")->fetchColumn();
-        $totalMenunggu=(int)$db->prepare("SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='menunggu_konfirmasi'")->fetchColumn();
-        $totalDitolak=(int)$db->prepare("SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='ditolak'")->fetchColumn(); }
+    if($periode){
+        $pid=(int)$periode['id'];
+        $totalLunas=(int)dbFetchColumn($db,"SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='lunas'",[$pid]);
+        $totalBelum=(int)dbFetchColumn($db,"SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='belum_bayar'",[$pid]);
+        $totalMenunggu=(int)dbFetchColumn($db,"SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='menunggu_konfirmasi'",[$pid]);
+        $totalDitolak=(int)dbFetchColumn($db,"SELECT COUNT(*) FROM tagihan_iuran WHERE periode_id=? AND status='ditolak'",[$pid]);
+    }
     $totalPemasukan=(int)$db->query("SELECT COALESCE(SUM(nominal),0) FROM pemasukan")->fetchColumn();
     $totalPengeluaran=(int)$db->query("SELECT COALESCE(SUM(nominal),0) FROM pengeluaran")->fetchColumn();
     $saldo=$totalPemasukan-$totalPengeluaran;
@@ -138,14 +157,23 @@ function getPagination(int $total, int $perPage, int $currentPage, string $baseU
 }
 
 function renderPagination(array $p): string {
-    if($p['total_pages']<=1) return ''; $h='<div class="pagination">';
-    if($p['has_prev']) $h.="<a href='{$p['base_url']}&page={$p['prev_page']}' class='page-link'>&laquo;</a>";
-    for($i=1;$i<=$p['total_pages'];$i++) $h.=($i==$p['current_page'])?"<span class='page-link active'>{$i}</span>":"<a href='{$p['base_url']}&page={$i}' class='page-link'>{$i}</a>";
-    if($p['has_next']) $h.="<a href='{$p['base_url']}&page={$p['next_page']}' class='page-link'>&raquo;</a>";
+    if($p['total_pages']<=1) return '';
+    $base = htmlspecialchars($p['base_url']);
+    $h='<div class="pagination">';
+    if($p['has_prev']) $h.="<a href='{$base}&hal={$p['prev_page']}' class='page-link'>&laquo;</a>";
+    // Tampilkan maksimal 7 nomor halaman di sekitar halaman aktif
+    $start=max(1,$p['current_page']-3); $end=min($p['total_pages'],$start+6); $start=max(1,$end-6);
+    for($i=$start;$i<=$end;$i++) $h.=($i==$p['current_page'])?"<span class='page-link active'>{$i}</span>":"<a href='{$base}&hal={$i}' class='page-link'>{$i}</a>";
+    if($p['has_next']) $h.="<a href='{$base}&hal={$p['next_page']}' class='page-link'>&raquo;</a>";
     return $h.'</div>';
 }
 
 function downloadCSV(string $filename, array $headers, array $rows): void {
+    // Buang buffer HTML yang mungkin sudah terbentuk sebelum mengirim file
+    while (ob_get_level() > 0) { ob_end_clean(); }
     header('Content-Type: text/csv; charset=utf-8'); header("Content-Disposition: attachment; filename={$filename}.csv");
-    $o=fopen('php://output','w'); fputcsv($o,$headers); foreach($rows as $r) fputcsv($o,$r); fclose($o); exit;
+    $o=fopen('php://output','w');
+    fputcsv($o,$headers,',','"','');
+    foreach($rows as $r) fputcsv($o,$r,',','"','');
+    fclose($o); exit;
 }

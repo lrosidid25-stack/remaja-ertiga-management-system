@@ -13,6 +13,9 @@ class SupabaseDB {
     private array $lastParams = [];
     private $lastInsertId = '';
 
+    // Status transaksi (Supabase REST tidak punya transaksi sungguhan)
+    private bool $inTx = false;
+
     function __construct() {
         $this->baseUrl = SUPABASE_URL . '/rest/v1';
         $this->apiKey  = SUPABASE_ANON_KEY;
@@ -55,13 +58,22 @@ class SupabaseDB {
         $this->lastRow = [];
         return $rows;
     }
+    // ============================================================
+    // TRANSAKSI — Supabase REST tidak mendukung multi-statement,
+    // jadi ini hanya penanda agar alur kode tetap jalan.
+    // ============================================================
+    function beginTransaction(): bool { $this->inTx = true; return true; }
+    function commit(): bool { $this->inTx = false; return true; }
+    function rollBack(): bool { $this->inTx = false; return true; }
+    function inTransaction(): bool { return $this->inTx; }
+
     function fetchColumn(int $col = 0): mixed {
         $row = $this->fetch();
         if (!$row) return 0;
         $vals = array_values($row);
         return $vals[$col] ?? 0;
     }
-    function lastInsertId(): string {
+    function lastInsertId(?string $name = null): string {
         return $this->lastInsertId;
     }
 
@@ -243,7 +255,6 @@ class SupabaseDB {
         ]);
         $res = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         if ($code >= 200 && $code < 300) {
             return json_decode($res, true) ?: [];
@@ -267,7 +278,6 @@ class SupabaseDB {
         ]);
         $res = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         if ($code >= 200 && $code < 300) {
             return json_decode($res, true) ?: [];
@@ -290,7 +300,6 @@ class SupabaseDB {
             CURLOPT_TIMEOUT => 15,
         ]);
         curl_exec($ch);
-        curl_close($ch);
     }
 
     // ============================================================

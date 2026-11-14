@@ -32,8 +32,8 @@ $kegiatanAktif = $db->query("SELECT * FROM kegiatan WHERE status = 'berlangsung'
 
 // Pemasukan & pengeluaran bulan ini
 $bulanIni = date('Y-m');
-$pemasukanBulan = (int)$db->prepare("SELECT COALESCE(SUM(nominal), 0) FROM pemasukan WHERE tanggal LIKE ?")->fetchColumn([$bulanIni . '%']);
-$pengeluaranBulan = (int)$db->prepare("SELECT COALESCE(SUM(nominal), 0) FROM pengeluaran WHERE tanggal LIKE ?")->fetchColumn([$bulanIni . '%']);
+$pemasukanBulan = (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal), 0) FROM pemasukan WHERE tanggal LIKE ?", [$bulanIni . '%']);
+$pengeluaranBulan = (int)dbFetchColumn($db, "SELECT COALESCE(SUM(nominal), 0) FROM pengeluaran WHERE tanggal LIKE ?", [$bulanIni . '%']);
 ?>
 
 <div class="card-header">
