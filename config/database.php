@@ -1,22 +1,51 @@
 <?php
 /**
  * KONEKSI DATABASE & INISIALISASI TABEL
- * - LOKAL: SQLite (remaja_ertiga.db)
- * - VERCEL: Supabase PostgreSQL (via REST API)
+ * - LOKAL  : SQLite (remaja_ertiga.db)
+ * - VERCEL : Supabase PostgreSQL lewat PostgREST (fungsi re_query)
+ *
+ * Di Vercel, setiap SQL dikirim apa adanya ke fungsi PostgreSQL
+ * `public.re_query(q text)`, sehingga JOIN/agregat/subquery berperilaku
+ * sama seperti di SQLite lokal. Tabel aplikasi memakai prefix "re_"
+ * agar tidak bentrok dengan tabel lain di project Supabase.
  */
 
-// ===== Supabase Configuration =====
-define('SUPABASE_URL', 'https://rilnglxfbbzmxvmxlsjm.supabase.co');
-define('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpbG5nbHhmYmJ6bXh2bXhsc2ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNDkzNDYsImV4cCI6MjA5OTYyNTM0Nn0.5enZLSKSQKObC45d7NhkqbP35aR63wVNIgrigCi66w8');
+// ===== Konfigurasi Supabase (diisi via environment variable di Vercel) =====
+// Nilai default di bawah hanya untuk keperluan dokumentasi/dev; jangan
+// menyimpan kredensial produksi di repositori.
+function cfg(string $key, string $default = ''): string
+{
+    $val = getenv($key);
+    if ($val === false || $val === '') {
+        $val = $_ENV[$key] ?? $_SERVER[$key] ?? $default;
+    }
+    return (string)$val;
+}
+
+define('SUPABASE_URL', cfg('SUPABASE_URL', ''));
+define('SUPABASE_ANON_KEY', cfg('SUPABASE_ANON_KEY', ''));
+// Kunci server-side (service_role): hanya dipakai di server Vercel.
+define('SUPABASE_SERVICE_KEY', cfg('SUPABASE_SERVICE_KEY', ''));
+
+// Schema/tabel aplikasi di Supabase memakai prefix "re_" pada schema public
+define('DB_SCHEMA', cfg('SUPABASE_DB_SCHEMA', 'public'));
+define('DB_PREFIX', cfg('SUPABASE_DB_PREFIX', 're_'));
 
 define('DB_PATH', __DIR__ . '/../remaja_ertiga.db');
 
 // Auto-detect environment
 if (getenv('VERCEL') || getenv('VERCEL_ENV')) {
-    // ===== VERCEL MODE: Supabase =====
+    // ===== VERCEL MODE: Supabase (PostgREST + re_query) =====
     require_once __DIR__ . '/supabase_db.php';
-    function getDB(): SupabaseDB { return new SupabaseDB(); }
-    function initDatabase(): void { /* Tabel sudah dibuat di Supabase */ }
+    function getDB(): SupabaseRpcDatabase
+    {
+        static $db = null;
+        if ($db === null) {
+            $db = new SupabaseRpcDatabase();
+        }
+        return $db;
+    }
+    function initDatabase(): void { /* tabel sudah dibuat di Supabase */ }
 
 } else {
     // ===== LOKAL MODE: SQLite =====
@@ -37,6 +66,7 @@ function getDB(): PDO {
 }
 
 function initDatabase(): void {
+    if (getenv('RE_SKIP_INIT')) return;
     $db = getDB();
     $db->exec("CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE,

@@ -1,7 +1,7 @@
 # Remaja Ertiga — Management System
 
 Sistem manajemen organisasi Remaja Ertiga: **anggota, iuran, kas (pemasukan/pengeluaran), kegiatan, laporan, dan pengaturan**.
-Dibangun dengan PHP (tanpa framework) + SQLite untuk lokal dan Supabase (PostgreSQL REST) untuk Vercel.
+Dibangun dengan PHP (tanpa framework) + SQLite untuk lokal dan Supabase PostgreSQL untuk Vercel.
 
 ## ✨ Fitur
 
@@ -56,15 +56,34 @@ npm install @php-wasm/cli
 
 `vercel.json` sudah merutekan semua request ke `api/index.php` dengan runtime `vercel-php`.
 
-1. Set environment variable di project Vercel:
-   - `SUPABASE_URL`, `SUPABASE_ANON_KEY` (sudah ada default di `config/database.php`)
-   - `JWT_SECRET` (wajib diganti di production)
-   - `GOOGLE_SERVICE_ACCOUNT_JSON` (opsional, untuk upload bukti ke Google Drive)
-2. Buat tabel di Supabase (lihat skema di `config/database.php`) dengan tipe
-   `serial`/`bigserial` untuk kolom `id`.
-3. Deploy: `vercel --prod` atau push ke branch produksi.
+1. **Siapkan database Supabase** — buka SQL Editor project Anda lalu jalankan
+   isi [`database/supabase_schema.sql`](database/supabase_schema.sql).
+   Skrip ini membuat tabel ber-prefix `re_` (agar tidak bentrok dengan tabel
+   lain) sekaligus fungsi `re_query()` yang menjalankan SQL aplikasi apa adanya.
+2. **Set environment variable di project Vercel**:
 
-Tanpa `VERCEL`/`VERCEL_ENV`, aplikasi otomatis memakai SQLite lokal.
+   | Variabel | Keterangan |
+   |---|---|
+   | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
+   | `SUPABASE_ANON_KEY` | kunci anon (publishable) |
+   | `SUPABASE_SERVICE_KEY` | kunci `service_role` — **wajib**, dipakai server untuk `re_query()`; jangan pernah dipakai di browser |
+   | `JWT_SECRET` | wajib diganti di production |
+   | `GOOGLE_SERVICE_ACCOUNT_JSON` | opsional, untuk upload bukti ke Google Drive |
+
+   Tanpa `SUPABASE_SERVICE_KEY`, halaman akan menampilkan error koneksi
+   database (fungsi `re_query` hanya diberikan ke `service_role`).
+3. **Deploy**: `vercel --prod` atau push ke branch produksi.
+4. **Verifikasi**: buka `index.php?page=status` — semua tabel harus hijau
+   dengan jumlah baris yang benar.
+
+Tanpa `VERCEL`/`VERCEL_ENV`, aplikasi otomatis memakai SQLite lokal
+(`remaja_ertiga.db`) — tidak perlu Supabase sama sekali untuk development.
+
+> Catatan arsitektur: di Vercel, `config/supabase_db.php` mengirim setiap
+> query ke fungsi PostgreSQL `re_query(q text)` lewat PostgREST. Dengan begitu
+> JOIN, subquery, agregat, `CASE`, `BETWEEN`, dan `ON CONFLICT` tetap berjalan
+> sama seperti di SQLite — tidak ada emulasi SQL di PHP. Tabel aplikasi
+> memakai prefix `re_`; akses langsung dari `anon`/`authenticated` dicabut.
 
 ## 🗂️ Struktur
 
@@ -74,6 +93,7 @@ index.php             Entry point lokal
 api/index.php         Entry point Vercel (JWT + Supabase)
 dev-router.php        Router untuk server PHP lokal
 config/               database.php (SQLite/Supabase), supabase_db.php, google_config.php
+database/             supabase_schema.sql (skema + fungsi re_query untuk Vercel)
 includes/             auth, jwt_auth, functions, header, footer, google_sync
 pages/                home, login, lupa-nir, status, dashboard, anggota/, iuran/,
                       konfirmasi/, metode/, pemasukan/, pengeluaran/, kegiatan/,
