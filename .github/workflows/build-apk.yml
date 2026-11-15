@@ -26,23 +26,36 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: apps/tawuran/package-lock.json
 
       - name: Setup JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # Android SDK sudah tersedia di runner ubuntu-latest.
+      # Pastikan platform 36 + build-tools ada, lalu tunjuk lokasi SDK ke Gradle.
+      - name: Prepare Android SDK
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "sdk.dir=$SDK" > android/local.properties
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKMANAGER" ]; then
+            yes 2>/dev/null | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+            "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools" \
+              || echo "sdkmanager install dilewati (kemungkinan sudah terpasang)"
+          else
+            echo "sdkmanager tidak ditemukan — mengandalkan auto-download AGP"
+          fi
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
