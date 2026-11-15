@@ -118,6 +118,13 @@ jobs:
           echo "== badging =="
           "$BT/aapt" dump badging out/tawuran-jalanan-sore.apk \
             | grep -E "package:|sdkVersion|targetSdkVersion|application-label|native-code" || true
+          echo "== jenis file =="
+          file out/tawuran-jalanan-sore.apk
+          ls -l out/tawuran-jalanan-sore.apk
+          echo "== sha256 =="
+          sha256sum out/tawuran-jalanan-sore.apk
+          echo "== isi (APK = arsip, ini normal) =="
+          unzip -l out/tawuran-jalanan-sore.apk | sed -n '1,6p'
           echo "== apksigner =="
           "$BT/apksigner" verify --print-certs out/tawuran-jalanan-sore.apk
           "$BT/apksigner" verify --verbose out/tawuran-jalanan-sore.apk | head -20
