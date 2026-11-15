@@ -27,6 +27,15 @@ apps/tawuran/
 
 ---
 
+## 0. Tangkapan layar
+
+Lihat galeri lengkap: **[docs/SCREENSHOTS.md](docs/SCREENSHOTS.md)** — judul,
+kustomisasi karakter, prolog 4 beat, pertarungan gir 2 m vs 6 m, dan tampilan HP.
+
+| ![Judul](docs/screenshots/01-title.jpg) | ![Pertarungan](docs/screenshots/10-gameplay-gir-6m.jpg) |
+| --- | --- |
+| Layar judul | Gelombang 1/3 dengan gir 6 m |
+
 ## 1. Cara memasang APK di HP (itel RS4)
 
 1. Buka tautan rilis di browser HP:

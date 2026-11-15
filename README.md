@@ -14,6 +14,10 @@ Three.js) dan dibungkus dengan Capacitor.
 https://github.com/lrosidid25-stack/remaja-ertiga-management-system/releases/download/apk-terbaru/tawuran-jalanan-sore.apk
 ```
 
+| ![Judul](apps/tawuran/docs/screenshots/01-title.jpg) | ![Pertarungan](apps/tawuran/docs/screenshots/10-gameplay-gir-6m.jpg) |
+| --- | --- |
+| Layar judul | Gelombang 1/3 · sabuk gir 6 m |
+
 APK dibuat otomatis oleh GitHub Actions setiap ada perubahan di `apps/tawuran/`
 (lihat `.github/workflows/build-apk.yml`) dan dipublikasikan ke rilis
 [`apk-terbaru`](../../releases/tag/apk-terbaru).
@@ -21,8 +25,7 @@ APK dibuat otomatis oleh GitHub Actions setiap ada perubahan di `apps/tawuran/`
 Panduan lengkap (pasang di HP, build sendiri, ganti ikon, ganti versi, tanda
 tangan release): **[apps/tawuran/BUILD-APK.md](apps/tawuran/BUILD-APK.md)**
 
-> ⚠️ Status: proyek web di `apps/tawuran/` belum berisi kode game asli — folder
-> `src/` dari AI Studio belum diunggah, jadi APK masih menampilkan layar status.
+> Galeri tangkapan layar: [apps/tawuran/docs/SCREENSHOTS.md](apps/tawuran/docs/SCREENSHOTS.md)
 
 ## 🗂️ Struktur repo
 

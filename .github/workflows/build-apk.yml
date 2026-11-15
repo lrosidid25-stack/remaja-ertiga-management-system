@@ -6,6 +6,8 @@ on:
     branches: ['**']
     paths:
       - 'apps/tawuran/**'
+      - '!apps/tawuran/docs/**'
+      - '!apps/tawuran/*.md'
       - '.github/workflows/build-apk.yml'
 
 concurrency:
