@@ -1,7 +1,7 @@
 {
   "name": "tawuran-jalanan-sore",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -10,7 +10,8 @@
     "lint": "tsc --noEmit",
     "cap:sync": "cap sync android",
     "apk": "npm run build && npm run cap:sync",
-    "check:src": "node scripts/check-src.mjs"
+    "check:src": "node scripts/check-src.mjs",
+    "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@capacitor/android": "^8.3.8",
@@ -33,6 +34,7 @@
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.5",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vite": "^8.3.8"
   }

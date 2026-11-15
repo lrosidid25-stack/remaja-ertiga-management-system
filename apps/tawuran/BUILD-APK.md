@@ -7,8 +7,9 @@ otomatis membuat file `.apk`.
 ```
 apps/tawuran/
 ├── index.html, package.json, vite.config.ts   # proyek web (dari AI Studio)
-├── src/                                        # ⚠️ kode game — masih kurang 9 modul
-├── public/textures/                            # tekstur (asphalt, concrete) → ikut ke APK
+├── src/                                        # kode game lengkap (dari AI Studio)
+│   ├── game/                                   # engine, types, rules, models, audio, …
+│   └── assets/images/                          # tekstur aspal & beton
 ├── assets/icon.png                             # ikon sumber 1024×1024
 ├── capacitor.config.ts                         # konfigurasi aplikasi Android
 └── android/                                    # proyek Android (Gradle)
@@ -74,50 +75,35 @@ Atau buka folder `apps/tawuran/android` langsung di Android Studio lalu
 
 ---
 
-## 4. Status kode game & cara menggantinya
+## 4. Status kode game
 
-| File | Status |
+Seluruh kode game dari AI Studio sudah masuk — tidak ada file pengganti lagi.
+
+| File | Keterangan |
 | --- | --- |
-| `src/main.tsx`, `src/App.tsx`, `src/index.css` | ✅ asli dari AI Studio |
-| `src/components/*.tsx` (8 file, termasuk `SvgIcons`, `TouchControls`) | ✅ asli |
-| `src/game/types.ts` | 🟡 **rekonstruksi** — bentuk data disusun ulang dari pemakaian komponen |
-| `src/game/rules.ts` | 🟡 **rekonstruksi** — statistik senjata masih angka sementara |
-| `src/game/engine.ts` | 🟠 **placeholder** — scene jalanan + gerak dasar, tanpa pertarungan |
+| `src/main.tsx`, `src/App.tsx`, `src/index.css` | orkestrasi React |
+| `src/components/*.tsx` (8 file) | TitleOverlay, IntroOverlay, CustomizerDrawer, GameHud, GameModal, RotatePrompt, SvgIcons, TouchControls |
+| `src/game/engine.ts` (3.364 baris) | `BrawlEngine` — mesin Three.js |
+| `src/game/types.ts`, `rules.ts`, `rules.test.ts` | tipe, statistik senjata, 9 unit test |
+| `src/game/models.ts`, `environment.ts`, `flexibleGir.ts`, `audio.ts` | model karakter, lingkungan, sabuk gir fleksibel, audio |
+| `src/assets/images/*.jpg` | tekstur aspal & beton (di-import lewat bundler) |
 
-Cek kapan saja:
-
-```bash
-npm run check:src     # ✔ kalau semua import relatif tersedia
-npm run lint          # tsc --noEmit
-npm run build         # bundel web → dist/
-```
-
-### Mengganti dengan file asli
-
-Timpa langsung ketiga file itu, lalu:
+### Perintah harian
 
 ```bash
-npm run lint && npm run build     # pastikan lolos
-npm run check:src                 # harus ✔
-git commit -am "feat: engine asli" && git push
+npm run check:src   # pastikan semua import relatif tersedia
+npm run test        # 9 unit test rules.ts (node:test via tsx)
+npm run lint        # tsc --noEmit
+npm run build       # bundel web → dist/
+npm run apk         # build + cap sync (butuh Android SDK lokal)
 ```
 
-APK baru terbit otomatis di rilis `apk-terbaru`.
+CI menjalankan urutan yang sama (check → test → lint → build → gradle →
+`apksigner verify`) sebelum menerbitkan APK.
 
-> **Gerbang CI:** workflow hanya membangun APK kalau `check:src` lulus. Kalau
-> ada modul yang hilang, build dilewati dan rilis lama tidak disentuh, supaya
-> APK yang sudah bisa dipasang tidak pernah rusak.
-
-### Tanda di aplikasi
-
-`engine.ts` placeholder menampilkan label kecil di kiri-bawah:
-
-```
-PRATINJAU — engine asli belum diunggah (gerak dasar saja)
-```
-
-Label itu dibuat oleh `engine.ts` sendiri (bukan komponen React), jadi otomatis
-hilang begitu file asli dipasang.
+> **Gerbang CI:** kalau `check:src` gagal (ada modul hilang), build dilewati dan
+> rilis `apk-terbaru` tidak disentuh, supaya APK yang sudah bisa dipasang tidak
+> pernah rusak.
 
 ## 5. Regenerasi ikon & splash
 

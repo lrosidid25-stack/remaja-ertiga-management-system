@@ -72,6 +72,14 @@ jobs:
             echo "::warning title=Sumber game belum lengkap::Folder src/ masih kurang file (lihat log langkah ini). APK dirilis sebelumnya tidak diubah."
           fi
 
+      - name: Run unit tests
+        if: steps.src.outputs.complete == 'true'
+        run: npm run test
+
+      - name: Type check
+        if: steps.src.outputs.complete == 'true'
+        run: npm run lint
+
       - name: Build web bundle
         if: steps.src.outputs.complete == 'true'
         run: npm run build

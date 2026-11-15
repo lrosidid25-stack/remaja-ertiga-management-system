@@ -1,45 +1,44 @@
-# Tekstur game (`public/textures/`)
+# Tekstur game (`src/assets/images/`)
 
-Aset di folder ini disalin apa adanya ke dalam APK (Vite `public/`), jadi
-**tidak perlu** di-import lewat bundler.
+Kedua tekstur di-import langsung oleh `engine.ts` / `environment.ts`, jadi
+Vite yang mem-bundel-nya (nama file di-hash, ikut masuk APK):
+
+```ts
+import texAsphalt from '../assets/images/tex_asphalt_street_1794731085204.jpg';
+import texConcrete from '../assets/images/tex_concrete_wall_1794731086713.jpg';
+```
 
 | File | Ukuran | Pemakaian yang disarankan |
 | --- | --- | --- |
-| `asphalt-street.jpg` | 1024×1024, 318 KB | permukaan jalan aspal (tileable) |
-| `concrete-wall.jpg` | 1024×1024, 364 KB | dinding beton / pagar (tileable) |
+| `tex_asphalt_street_1794731085204.jpg` | 1024×1024, 318 KB | permukaan jalan aspal (tileable) |
+| `tex_concrete_wall_1794731086713.jpg` | 1024×1024, 364 KB | dinding beton / pagar (tileable) |
 
 ## Cara memuat di Three.js
 
-Pakai path **relatif** (jangan diawali `/`). Vite di proyek ini memakai
-`base: './'` supaya bundel juga jalan di dalam WebView Android
-(`https://localhost`), dan path absolut akan gagal di sana.
+Tekstur di proyek ini **di-import sebagai modul** (bukan path string), supaya
+Vite mem-bundel dan memberi hash nama file — aman dipakai di WebView APK:
 
 ```ts
 import * as THREE from 'three';
+import texAsphalt from '../assets/images/tex_asphalt_street_1794731085204.jpg';
 
 const loader = new THREE.TextureLoader();
+const asphalt = loader.load(texAsphalt);
 
-const asphalt = loader.load('textures/asphalt-street.jpg');
 asphalt.colorSpace = THREE.SRGBColorSpace;
 asphalt.wrapS = asphalt.wrapT = THREE.RepeatWrapping;
-asphalt.repeat.set(8, 8);      // sesuaikan dengan skala dunia
-asphalt.anisotropy = 4;        // batasi agar ringan di HP kelas menengah
+asphalt.repeat.set(8, 8);   // sesuaikan skala dunia
+asphalt.anisotropy = 4;     // batasi agar ringan di HP kelas menengah
 ```
 
-Untuk beberapa tekstur sekaligus, `THREE.LoadingManager` lebih rapi:
-
-```ts
-const manager = new THREE.LoadingManager();
-const loader = new THREE.TextureLoader(manager);
-const asphalt  = loader.load('textures/asphalt-street.jpg');
-const concrete = loader.load('textures/concrete-wall.jpg');
-manager.onLoad = () => console.log('semua tekstur siap');
-```
+Hindari path absolut seperti `'/assets/images/…'`: bundel APK dimuat dari
+`https://localhost` dengan `base: './'`, sehingga path absolut akan gagal.
 
 ## Menambah aset lain
 
-- Taruh model `.glb`/`.gltf` di `public/models/`, audio di `public/audio/`.
-- Nama file pakai huruf kecil dan tanda hubung (`concrete-wall.jpg`) supaya aman
-  di semua sistem file.
+- Gambar/tekstur → `src/assets/images/`, lalu `import` seperti di atas.
+- Audio → `src/assets/audio/` (atau dibuat prosedural seperti `audio.ts`).
+- Model 3D dibuat prosedural di `models.ts`; kalau nanti pakai `.glb`, taruh di
+  `public/models/` (otomatis ikut ke APK) dan muat dengan path relatif.
 - Jaga ukuran: tekstur 1024×1024 sudah cukup untuk layar HP; hindari > 2048.
-- Cek ukuran total: `du -sh public/` — semua ikut masuk ke dalam APK.
+- Cek ukuran hasil bundel: `npm run build` lalu `du -sh dist`.
