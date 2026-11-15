@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tawuran: Jalanan Sore</string>
+    <string name="title_activity_main">Tawuran: Jalanan Sore</string>
+    <string name="package_name">id.remajaertiga.tawuran</string>
+    <string name="custom_url_scheme">id.remajaertiga.tawuran</string>
+</resources>

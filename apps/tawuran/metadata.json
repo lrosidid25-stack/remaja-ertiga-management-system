@@ -1,0 +1,6 @@
+{
+  "name": "Tawuran: Jalanan Sore",
+  "description": "Game simulasi aksi tawuran pelajar 3D realistis dengan kustomisasi karakter lengkap, senjata modifikasi khas jalanan (sabit modif, gir sabuk motor, petasan, balok paku), dan sistem pertarungan taktis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
