@@ -27,6 +27,7 @@ export const MABAR_SUPABASE_ANON_KEY =
 
 export type MabarRole = 'host' | 'guest';
 
+
 export type MabarStatus =
   | 'connecting'
   | 'waiting'
