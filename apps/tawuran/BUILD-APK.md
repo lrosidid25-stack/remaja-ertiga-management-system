@@ -75,21 +75,38 @@ Atau buka folder `apps/tawuran/android` langsung di Android Studio lalu
 
 ## 4. Memasukkan kode game yang sebenarnya
 
-Folder `src/` dari AI Studio **belum diunggah**, jadi APK saat ini hanya
-menampilkan layar status ("Bundel game: menunggu src/").
+File yang sudah ada di `src/`: `main.tsx`, `App.tsx`, `index.css`.
 
-Setelah kode asli tersedia:
+Masih **kurang 9 modul** yang di-import oleh `App.tsx` — cek kapan saja dengan:
 
-1. Hapus isi `apps/tawuran/src/`, lalu salin `src/` asli ke sana
-   (minimal harus ada `src/main.tsx`).
-2. Kalau proyek asli memakai file konfigurasi lain (mis. `services/`, `components/`,
-   `constants.ts`), salin juga ke `apps/tawuran/`.
-3. Pastikan `npm run build` berhasil, lalu commit & push — GitHub Actions
-   akan membuat APK baru otomatis.
-4. Ganti ikon kalau perlu: timpa `assets/icon.png` (1024×1024, PNG persegi),
-   lalu jalankan ulang perintah pembuatan ikon (lihat bagian 5).
+```bash
+npm run check:src          # daftar file yang hilang
+npm run check:src -- --list  # hanya nama file
+```
 
----
+| File yang belum ada | Dipakai untuk |
+| --- | --- |
+| `src/game/engine.ts` | `BrawlEngine` — mesin Three.js (canvas, render loop, input) |
+| `src/game/rules.ts` | `clampGirLength` — aturan panjang gir |
+| `src/game/types.ts` | `DEFAULT_CHARACTER`, `CharacterConfig`, `HudSnapshot`, `ThemeMode`, `WeaponId` |
+| `src/components/TitleOverlay.tsx` | layar judul |
+| `src/components/IntroOverlay.tsx` | adegan pembuka |
+| `src/components/CustomizerDrawer.tsx` | kustomisasi karakter |
+| `src/components/GameHud.tsx` | HUD saat bermain |
+| `src/components/GameModal.tsx` | jeda / hasil akhir |
+| `src/components/RotatePrompt.tsx` | ajakan memutar HP |
+
+Cara termudah: di AI Studio buka **Settings → Download project** (atau
+*Export to ZIP*), lalu salin **seluruh isi folder `src/`** ke `apps/tawuran/src/`,
+dan taruh aset statis (model, tekstur, audio) di `apps/tawuran/public/`.
+
+Kalau semua sudah lengkap, `npm run check:src` akan mencetak
+`✔ src/ lengkap`, dan build APK otomatis jalan lagi.
+
+> **Gerbang CI:** selama `check:src` gagal, workflow sengaja **tidak**
+> membangun APK dan **tidak** menyentuh rilis `apk-terbaru`, supaya APK yang
+> sudah bisa dipasang tidak rusak. Setelah sumber lengkap, push berikutnya
+> langsung menerbitkan APK game yang asli.
 
 ## 5. Regenerasi ikon & splash
 

@@ -60,21 +60,37 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      # Gerbang: jangan bangun APK kalau src/ masih bolong.
+      # Rilis terakhir yang sudah ada dibiarkan utuh.
+      - name: Check game source completeness
+        id: src
+        run: |
+          if npm run --silent check:src; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Sumber game belum lengkap::Folder src/ masih kurang file (lihat log langkah ini). APK dirilis sebelumnya tidak diubah."
+          fi
+
       - name: Build web bundle
+        if: steps.src.outputs.complete == 'true'
         run: npm run build
         env:
           APP_BUILD: ${{ github.run_number }}
 
       - name: Sync web bundle into Android project
+        if: steps.src.outputs.complete == 'true'
         run: npx cap sync android
 
       - name: Build signed APK (release)
+        if: steps.src.outputs.complete == 'true'
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Rename APK
+        if: steps.src.outputs.complete == 'true'
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/release/app-release.apk \
@@ -82,6 +98,7 @@ jobs:
           ls -lh out/
 
       - name: Verify APK (paket, versi, tanda tangan)
+        if: steps.src.outputs.complete == 'true'
         run: |
           SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           BT=$(ls -d "$SDK"/build-tools/*/ 2>/dev/null | tail -1)
@@ -93,6 +110,7 @@ jobs:
           "$BT/apksigner" verify --verbose out/tawuran-jalanan-sore.apk | head -20
 
       - name: Upload APK artifact
+        if: steps.src.outputs.complete == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: tawuran-jalanan-sore-apk
@@ -102,7 +120,7 @@ jobs:
       # Publikasi ke GitHub Releases → link unduhan langsung (tanpa login)
       # yang bisa dibuka dari browser HP.
       - name: Publish APK to release
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: steps.src.outputs.complete == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-terbaru
