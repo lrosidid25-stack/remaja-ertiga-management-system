@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BrawlEngine } from './game/engine';
 import { clampGirLength } from './game/rules';
+import { LEVELS, MAX_LEVEL, loadUnlockedLevel } from './game/maps';
 import {
   DEFAULT_CHARACTER,
   type CharacterConfig,
@@ -50,6 +51,10 @@ const INITIAL_HUD: HudSnapshot = {
   isBlocking: false,
   parryFlashTimer: 0,
   waveBannerText: '',
+  level: 1,
+  mapName: LEVELS[0].nama,
+  maxLevel: MAX_LEVEL,
+  unlockedLevel: 1,
 };
 
 function loadSavedCharacter(): CharacterConfig {
@@ -77,6 +82,11 @@ export default function App() {
   const [muted, setMuted] = useState(false);
   const [isPortraitMobile, setIsPortraitMobile] = useState(false);
   const [portraitDismissed, setPortraitDismissed] = useState(false);
+  const [selectedLevel, setSelectedLevel] = useState(1);
+  const [unlockedLevel, setUnlockedLevel] = useState(loadUnlockedLevel);
+  useEffect(() => {
+    if (hud.unlockedLevel > unlockedLevel) setUnlockedLevel(hud.unlockedLevel);
+  }, [hud.unlockedLevel, unlockedLevel]);
 
   // Detect narrow portrait orientation to offer landscape rotation guidance
   useEffect(() => {
@@ -117,6 +127,7 @@ export default function App() {
       autostart,
     );
     engineRef.current = engine;
+    setUnlockedLevel(engine.getUnlockedLevel());
 
     return () => {
       engine.dispose();
@@ -142,6 +153,12 @@ export default function App() {
       // Orientation lock requires fullscreen/PWA on supported browsers
     }
   }, []);
+
+  const handleSelectLevel = useCallback((id: number) => {
+    setSelectedLevel(id);
+    engineRef.current?.setLevel(id);
+    setUnlockedLevel(engineRef.current?.getUnlockedLevel() ?? unlockedLevel);
+  }, [unlockedLevel]);
 
   const handleStartWithIntro = useCallback(() => {
     setCustomizerOpen(false);
@@ -232,6 +249,10 @@ export default function App() {
         <TitleOverlay
           config={charConfig}
           bestScore={hud.bestScore}
+          levels={LEVELS}
+          selectedLevel={selectedLevel}
+          unlockedLevel={unlockedLevel > hud.unlockedLevel ? unlockedLevel : hud.unlockedLevel}
+          onSelectLevel={handleSelectLevel}
           theme={theme}
           muted={muted}
           onStart={handleStartWithIntro}

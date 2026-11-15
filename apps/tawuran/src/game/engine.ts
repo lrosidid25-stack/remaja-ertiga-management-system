@@ -2,6 +2,15 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { SoundEngine } from './audio';
 import { buildStreetEnvironment } from './environment';
+import {
+  MAX_LEVEL,
+  clampLevelId,
+  getLevel,
+  loadUnlockedLevel,
+  unlockNextLevel,
+  buildWaveConfig,
+  type LevelConfig,
+} from './maps';
 import { FlexibleGirVisual } from './flexibleGir';
 import { buildFighterRig, buildPetasanMesh, buildWeaponMesh, type FighterRig } from './models';
 import {
@@ -170,6 +179,14 @@ export class BrawlEngine {
   private lastTime = 0;
   private disposed = false;
   private resizeObserver: ResizeObserver | null = null;
+
+  private levelId = 1;
+  private level: LevelConfig = getLevel(1);
+  private unlockedLevel = loadUnlockedLevel();
+  private envGroup: THREE.Group | null = null;
+  private hemiLight: THREE.HemisphereLight | null = null;
+  private sunLight: THREE.DirectionalLight | null = null;
+  private rimLight: THREE.DirectionalLight | null = null;
 
   private onHudUpdate: (snap: HudSnapshot) => void;
   private hudSyncTimer = 0;
@@ -360,6 +377,7 @@ export class BrawlEngine {
     // 5. Warm Sunset Key Light + Cool Dusk Hemisphere Fill
     const hemi = new THREE.HemisphereLight(0x8fa8d6, 0x3b2c22, 0.85);
     this.scene.add(hemi);
+    this.hemiLight = hemi;
 
     const sunKey = new THREE.DirectionalLight(0xffb36b, 2.2);
     sunKey.position.set(-18, 22, 14);
@@ -374,18 +392,18 @@ export class BrawlEngine {
     sunKey.shadow.bias = -0.0005;
     sunKey.shadow.normalBias = 0.02;
     this.scene.add(sunKey);
+    this.sunLight = sunKey;
 
     const rimLight = new THREE.DirectionalLight(0x93c5fd, 0.65);
     rimLight.position.set(14, 10, -20);
     this.scene.add(rimLight);
+    this.rimLight = rimLight;
 
     this.activeBlastLight = new THREE.PointLight(0xff7b29, 0, 14, 1.5);
     this.scene.add(this.activeBlastLight);
 
-    // 6. Street Environment
-    const env = buildStreetEnvironment(this.renderer, this.isSoftwareGl);
-    this.scene.add(env.group);
-    this.envDisposables = env.disposables;
+    // 6. Street Environment (mengikuti map/level terpilih)
+    this.buildEnvironmentForLevel();
 
     // 7. Pooled Particle InstancedMesh
     const pGeo = new THREE.BoxGeometry(0.11, 0.11, 0.11);
@@ -945,7 +963,7 @@ export class BrawlEngine {
   }
 
   private spawnWave(waveNum: number): void {
-    const cfg = computeWaveConfig(waveNum);
+    const cfg = buildWaveConfig(this.level, waveNum);
     this.maxWaves = cfg.maxWaves;
     this.enemiesTotalInWave = cfg.enemies.length;
     this.waveBannerText =
@@ -1003,7 +1021,8 @@ export class BrawlEngine {
 
   private spawnAllies(): void {
     this.clearAllies();
-    for (let i = 0; i < ALLY_SQUAD_SPECS.length; i++) {
+    const allyLimit = Math.max(0, Math.min(ALLY_SQUAD_SPECS.length, this.level.allyCount));
+    for (let i = 0; i < allyLimit; i++) {
       const spec = ALLY_SQUAD_SPECS[i];
       const rig = buildFighterRig(
         {
@@ -2216,7 +2235,7 @@ export class BrawlEngine {
   }
 
   private updateEnemies(dt: number): void {
-    const waveCfg = computeWaveConfig(this.wave);
+    const waveCfg = buildWaveConfig(this.level, this.wave);
 
     const enemyTargets = new Map<
       string,
@@ -3149,6 +3168,10 @@ export class BrawlEngine {
 
   private finishRun(victory: boolean): void {
     this.isVictory = victory;
+    if (victory) {
+      // Selesaikan map ini → buka level berikutnya (disimpan di HP).
+      this.unlockedLevel = Math.max(this.unlockedLevel, unlockNextLevel(this.level.id));
+    }
     if (this.score > this.bestScore) {
       this.bestScore = this.score;
       try {
@@ -3196,6 +3219,10 @@ export class BrawlEngine {
       isBlocking: this.isBlocking,
       parryFlashTimer: this.parryWindowTimer,
       waveBannerText: this.waveBannerTimer > 0 ? this.waveBannerText : '',
+      level: this.level.id,
+      mapName: this.level.nama,
+      maxLevel: MAX_LEVEL,
+      unlockedLevel: this.unlockedLevel,
     });
   }
 
@@ -3342,6 +3369,96 @@ export class BrawlEngine {
     } else {
       window.addEventListener('resize', this.handleResize);
     }
+  }
+
+  // ============================================================
+  // MAP / LEVEL
+  // ============================================================
+
+  /** Bangun ulang environment sesuai level aktif (dipakai saat ganti map). */
+  private buildEnvironmentForLevel(): void {
+    if (this.envGroup) {
+      this.scene.remove(this.envGroup);
+      this.envGroup.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.isMesh) {
+          mesh.geometry?.dispose?.();
+          const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+          else mat?.dispose?.();
+        }
+      });
+      this.envGroup = null;
+    }
+    this.envDisposables.forEach((d) => d.dispose());
+    this.envDisposables = [];
+
+    const env = buildStreetEnvironment(this.renderer, this.isSoftwareGl, this.level);
+    this.scene.add(env.group);
+    this.envGroup = env.group;
+    this.envDisposables = env.disposables;
+
+    this.applyLevelTheme();
+  }
+
+  /** Terapkan langit, kabut, dan pencahayaan khas map ini. */
+  private applyLevelTheme(): void {
+    const t = this.level.theme;
+
+    this.scene.background = new THREE.Color(t.sky);
+
+    if (this.scene.fog instanceof THREE.FogExp2) {
+      this.scene.fog.color.setHex(t.sky);
+      this.scene.fog.density = t.fogDensity;
+    } else {
+      this.scene.fog = new THREE.FogExp2(t.sky, t.fogDensity);
+    }
+
+    if (this.hemiLight) {
+      this.hemiLight.color.setHex(t.hemiSky);
+      this.hemiLight.groundColor.setHex(t.hemiGround);
+      this.hemiLight.intensity = t.hemiIntensity;
+    }
+    if (this.sunLight) {
+      this.sunLight.color.setHex(t.sunColor);
+      this.sunLight.intensity = t.sunIntensity;
+      this.sunLight.position.set(t.sunPosition[0], t.sunPosition[1], t.sunPosition[2]);
+    }
+    if (this.rimLight) {
+      this.rimLight.color.setHex(t.rimColor);
+      this.rimLight.intensity = t.rimIntensity;
+    }
+  }
+
+  /** Level yang sedang dipilih (1–10). */
+  public getSelectedLevel(): number {
+    return this.levelId;
+  }
+
+  /** Level tertinggi yang sudah terbuka. */
+  public getUnlockedLevel(): number {
+    return this.unlockedLevel;
+  }
+
+  /** Pilih level dari layar judul. Level yang masih terkunci akan diabaikan. */
+  public setLevel(id: number): void {
+    const clamped = Math.min(clampLevelId(id), this.unlockedLevel);
+    if (clamped === this.levelId) {
+      this.emitHud();
+      return;
+    }
+    this.levelId = clamped;
+    this.level = getLevel(clamped);
+    this.maxWaves = this.level.waveCount;
+
+    if (this.renderer && this.scene) {
+      this.buildEnvironmentForLevel();
+      if (this.playerRig) {
+        this.playerRig.root.position.set(0, 0, 6);
+        this.playerRig.root.rotation.set(0, 0.2, 0);
+      }
+    }
+    this.emitHud();
   }
 
   public dispose(): void {

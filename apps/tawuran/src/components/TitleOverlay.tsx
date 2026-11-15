@@ -4,11 +4,23 @@ import { TitleEmblemSvg } from './SvgIcons';
 import { WEAPON_SPECS, THROWABLE_SPECS } from '../game/rules';
 import type { CharacterConfig, ThemeMode } from '../game/types';
 
+export interface LevelChip {
+  id: number;
+  nama: string;
+  lokasi: string;
+  difficulty: number;
+}
+
 interface TitleOverlayProps {
   config: CharacterConfig;
   bestScore: number;
   theme: ThemeMode;
   muted: boolean;
+  /** Daftar 10 map jalanan. */
+  levels?: LevelChip[];
+  selectedLevel?: number;
+  unlockedLevel?: number;
+  onSelectLevel?: (id: number) => void;
   onStart: () => void;
   onOpenCustomizer: () => void;
   onToggleTheme: () => void;
@@ -21,6 +33,10 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
   bestScore,
   theme,
   muted,
+  levels = [],
+  selectedLevel = 1,
+  unlockedLevel = 1,
+  onSelectLevel,
   onStart,
   onOpenCustomizer,
   onToggleTheme,
@@ -109,6 +125,75 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
               </>
             )}
           </div>
+
+          {/* Pemilih Map Jalanan (10 level) */}
+          {levels.length > 0 && (
+            <div className="mt-3 [@media(max-height:520px)]:mt-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider opacity-70">
+                  Pilih Map Jalanan
+                </div>
+                <div className="text-[10px] sm:text-[11px] font-mono-num opacity-60">
+                  {Math.min(unlockedLevel, levels.length)}/{levels.length} terbuka
+                </div>
+              </div>
+
+              <div
+                className="mt-1.5 custom-scrollbar overflow-x-auto overscroll-contain"
+                role="group"
+                aria-label="Pilih map jalanan"
+              >
+                <div className="flex gap-1.5 pb-1 w-max">
+                  {levels.map((lv) => {
+                    const locked = lv.id > unlockedLevel;
+                    const active = lv.id === selectedLevel;
+                    return (
+                      <button
+                        key={lv.id}
+                        type="button"
+                        tabIndex={-1}
+                        disabled={locked}
+                        aria-pressed={active}
+                        aria-label={locked ? `Map ${lv.id} terkunci` : `Map ${lv.id}: ${lv.nama}`}
+                        onClick={(e) => {
+                          e.currentTarget.blur();
+                          onSelectLevel?.(lv.id);
+                        }}
+                        className={`min-w-[54px] sm:min-w-[62px] min-h-[42px] px-2 py-1 rounded-lg border text-left transition-colors ${
+                          locked
+                            ? 'opacity-40 cursor-not-allowed'
+                            : 'cursor-pointer'
+                        } ${
+                          active
+                            ? 'bg-amber-600 border-amber-500 text-white'
+                            : isDark
+                              ? 'bg-zinc-900/90 border-zinc-700 text-zinc-200 hover:bg-zinc-800'
+                              : 'bg-white border-zinc-300 text-zinc-800 hover:bg-zinc-100'
+                        }`}
+                      >
+                        <span className="block font-mono-num font-bold text-sm leading-tight">
+                          {locked ? '🔒' : String(lv.id).padStart(2, '0')}
+                        </span>
+                        <span className="block text-[9px] leading-tight truncate max-w-[62px]">
+                          {locked ? 'terkunci' : lv.nama}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {(() => {
+                const lv = levels.find((l) => l.id === selectedLevel) ?? levels[0];
+                return (
+                  <p className={`mt-1 text-[10px] sm:text-[11px] leading-snug ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                    <span className="font-semibold text-amber-500">Map {lv.id}</span>{' '}
+                    · {lv.lokasi} · kesulitan {lv.difficulty}/10
+                  </p>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Clear Primary + Secondary CTAs */}
           <div className="mt-4 [@media(max-height:520px)]:mt-3 flex flex-col sm:flex-row gap-2.5">

@@ -110,6 +110,13 @@ export interface HudSnapshot {
   isBlocking: boolean;
   parryFlashTimer: number;
   waveBannerText: string;
+
+  /** Level/map yang sedang dimainkan (1–10). */
+  level: number;
+  mapName: string;
+  maxLevel: number;
+  /** Level tertinggi yang sudah terbuka (progres disimpan di HP). */
+  unlockedLevel: number;
 }
 
 export const DEFAULT_CHARACTER: CharacterConfig = {

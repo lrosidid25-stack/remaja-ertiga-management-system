@@ -117,6 +117,15 @@ export const GameHud: React.FC<GameHudProps> = ({
               className={`px-2.5 sm:px-3.5 [@media(max-height:520px)]:px-2.5 py-1.5 sm:py-2 [@media(max-height:520px)]:py-1.5 rounded-xl border shadow-lg flex items-center gap-2 sm:gap-3 [@media(max-height:520px)]:gap-2 ${surfaceClass}`}
             >
               <div>
+                <div className="text-[9px] sm:text-[10px] font-semibold opacity-70">
+                  MAP {hud.level}/{hud.maxLevel}
+                </div>
+                <div className="font-mono-num font-bold text-xs sm:text-base [@media(max-height:520px)]:text-sm max-w-[86px] sm:max-w-[120px] truncate">
+                  {hud.mapName}
+                </div>
+              </div>
+              <div className="w-px h-5 sm:h-6 bg-zinc-700/50" />
+              <div>
                 <div className="text-[9px] sm:text-[10px] font-semibold opacity-70">GELOMBANG</div>
                 <div className="font-mono-num font-bold text-xs sm:text-base [@media(max-height:520px)]:text-sm">
                   {hud.wave}/{hud.maxWaves}

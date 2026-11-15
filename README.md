@@ -16,7 +16,28 @@ https://github.com/lrosidid25-stack/remaja-ertiga-management-system/releases/dow
 
 | ![Judul](apps/tawuran/docs/screenshots/01-title.jpg) | ![Pertarungan](apps/tawuran/docs/screenshots/10-gameplay-gir-6m.jpg) |
 | --- | --- |
-| Layar judul | Gelombang 1/3 · sabuk gir 6 m |
+| Layar judul + pemilih peta | Gelombang 1/3 · sabuk gir 6 m |
+
+### 🗺️ 10 peta jalanan + sistem level
+
+Pilih peta di layar judul (geser ke samping). Peta berikutnya terbuka otomatis
+setelah peta sebelumnya ditamatkan; kemajuan disimpan di HP (offline).
+
+| # | Peta | Lebar jalan | Kesulitan |
+| --- | --- | --- | --- |
+| 1 | Jalanan Sore | 24 m | 1 |
+| 2 | Gang Sempit | 19 m | 2 |
+| 3 | Pasar Malam | 26 m | 3 |
+| 4 | Kolong Flyover | 22 m | 4 |
+| 5 | Terminal Angkot | 28 m | 5 |
+| 6 | Bantaran Sungai | 30 m | 6 |
+| 7 | Perumahan Kosong | 24 m | 7 |
+| 8 | Underpass Layang | 20 m | 8 |
+| 9 | Alun-alun Malam | 28 m | 9 |
+| 10 | Markas Lawan | 26 m | 10 |
+
+Tiap peta punya jumlah gelombang, HP & kecepatan lawan, jumlah teman satu
+geng, serta bos `pentolan` di gelombang terakhir yang berbeda-beda.
 
 APK dibuat otomatis oleh GitHub Actions setiap ada perubahan di `apps/tawuran/`
 (lihat `.github/workflows/build-apk.yml`) dan dipublikasikan ke rilis

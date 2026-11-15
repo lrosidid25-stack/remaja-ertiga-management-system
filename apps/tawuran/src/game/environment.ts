@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import asphaltImgUrl from '../assets/images/tex_asphalt_street_1794731085204.jpg';
 import concreteImgUrl from '../assets/images/tex_concrete_wall_1794731086713.jpg';
+import { LEVELS, type LevelConfig } from './maps';
 
 export interface StreetEnvironment {
   group: THREE.Group;
@@ -197,7 +198,15 @@ function buildParkedAngkot(
 export function buildStreetEnvironment(
   renderer: THREE.WebGLRenderer,
   isSoftwareGl: boolean,
+  level: LevelConfig = LEVELS[0],
 ): StreetEnvironment {
+  const map = level;
+  const theme = map.theme;
+  const layout = map.layout;
+  /** Setengah lebar jalan — dipakai untuk menaruh trotoar, tiang, & bangunan. */
+  const halfRoad = layout.roadWidth / 2;
+  const roadLength = 160;
+
   const group = new THREE.Group();
   const lampLights: THREE.PointLight[] = [];
   const disposables: Array<{ dispose: () => void }> = [];
@@ -209,7 +218,7 @@ export function buildStreetEnvironment(
   asphaltMap.colorSpace = THREE.SRGBColorSpace;
   asphaltMap.wrapS = THREE.RepeatWrapping;
   asphaltMap.wrapT = THREE.RepeatWrapping;
-  asphaltMap.repeat.set(5, 18);
+  asphaltMap.repeat.set(Math.max(3, Math.round(layout.roadWidth / 4.8)), 18);
   asphaltMap.anisotropy = maxAniso;
 
   const concreteMap = texLoader.load(concreteImgUrl);
@@ -225,14 +234,14 @@ export function buildStreetEnvironment(
 
   // 1. Extended Asphalt Roadway (no floating box void - extends far along Z)
   const roadMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
+    color: theme.roadTint,
     map: asphaltMap,
     bumpMap: asphaltBump,
     bumpScale: 0.025,
     roughness: 0.86,
     metalness: 0.04,
   });
-  const roadGeo = new THREE.PlaneGeometry(24, 160);
+  const roadGeo = new THREE.PlaneGeometry(layout.roadWidth, roadLength);
   const road = new THREE.Mesh(roadGeo, roadMat);
   road.rotation.x = -Math.PI * 0.5;
   road.receiveShadow = true;
@@ -260,16 +269,23 @@ export function buildStreetEnvironment(
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
   });
-  const dashGeo = new THREE.PlaneGeometry(0.24, 2.4);
-  const dashCount = 24;
-  const dashMesh = new THREE.InstancedMesh(dashGeo, paintMat, dashCount);
+  const dashGeo = new THREE.PlaneGeometry(layout.markings === 'double' ? 0.18 : 0.24, 2.4);
+  const dashCount = layout.markings === 'none' ? 0 : 24 * (layout.markings === 'double' ? 2 : 1);
+  const dashMesh = new THREE.InstancedMesh(dashGeo, paintMat, Math.max(1, dashCount));
   const dummy = new THREE.Object3D();
-  for (let i = 0; i < dashCount; i++) {
-    dummy.position.set(0, 0.02, -55 + i * 5);
-    dummy.rotation.set(-Math.PI * 0.5, 0, 0);
-    dummy.updateMatrix();
-    dashMesh.setMatrixAt(i, dummy.matrix);
+  let dashIdx = 0;
+  if (dashCount > 0) {
+    const lanes = layout.markings === 'double' ? [-0.35, 0.35] : [0];
+    for (const laneX of lanes) {
+      for (let i = 0; i < 24; i++) {
+        dummy.position.set(laneX, 0.02, -55 + i * 5);
+        dummy.rotation.set(-Math.PI * 0.5, 0, 0);
+        dummy.updateMatrix();
+        dashMesh.setMatrixAt(dashIdx++, dummy.matrix);
+      }
+    }
   }
+  dashMesh.count = dashCount;
   dashMesh.instanceMatrix.needsUpdate = true;
   dashMesh.computeBoundingSphere();
   dashMesh.receiveShadow = true;
@@ -283,9 +299,9 @@ export function buildStreetEnvironment(
     roughness: 0.9,
     metalness: 0.04,
   });
-  const sidewalkGeo = new THREE.BoxGeometry(5.5, 0.22, 140);
+  const sidewalkGeo = new THREE.BoxGeometry(5.5, 0.22, roadLength - 20);
   disposables.push(sidewalkMat, sidewalkGeo);
-  for (const sx of [-13.4, 13.4]) {
+  for (const sx of [-(halfRoad + 1.4), halfRoad + 1.4]) {
     const sw = new THREE.Mesh(sidewalkGeo, sidewalkMat);
     sw.position.set(sx, 0.11, 0);
     sw.receiveShadow = true;
@@ -297,10 +313,10 @@ export function buildStreetEnvironment(
   const curbMat = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0.05 });
   const curbCount = 80;
   const curbInst = new THREE.InstancedMesh(curbGeo, curbMat, curbCount);
-  const yellowC = new THREE.Color(0xd97706);
+  const yellowC = new THREE.Color(theme.lampColor);
   const darkC = new THREE.Color(0x1f2937);
   let ci = 0;
-  for (const sx of [-10.65, 10.65]) {
+  for (const sx of [-(halfRoad - 1.35), halfRoad - 1.35]) {
     for (let k = 0; k < 40; k++) {
       dummy.position.set(sx, 0.12, -30 + k * 1.5);
       dummy.rotation.set(0, 0, 0);
@@ -330,11 +346,12 @@ export function buildStreetEnvironment(
   });
   disposables.push(pillarMat, darkSteelMat);
 
+  if (layout.flyover) {
   for (const pz of [-13, 13]) {
     const bridgeGroup = new THREE.Group();
     bridgeGroup.position.set(0, 0, pz);
 
-    for (const sx of [-10.6, 10.6]) {
+    for (const sx of [-(halfRoad - 1.4), halfRoad - 1.4]) {
       const plinth = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.55, 2.1), darkSteelMat);
       plinth.position.set(sx, 0.275, 0);
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.78, 6.8, 12), pillarMat);
@@ -342,7 +359,7 @@ export function buildStreetEnvironment(
       bridgeGroup.add(plinth, shaft);
     }
 
-    const capBeam = new THREE.Mesh(new THREE.BoxGeometry(24, 1.0, 2.4), pillarMat);
+    const capBeam = new THREE.Mesh(new THREE.BoxGeometry(layout.roadWidth + 2, 1.0, 2.4), pillarMat);
     capBeam.position.y = 7.4;
     bridgeGroup.add(capBeam);
 
@@ -356,15 +373,16 @@ export function buildStreetEnvironment(
   }
 
   // Overhead flyover deck spanning high above the street (high enough for camera clearance)
-  const deckGeo = new THREE.BoxGeometry(26, 1.1, 58);
+  const deckGeo = new THREE.BoxGeometry(layout.roadWidth + 4, 1.1, 58);
   const deck = new THREE.Mesh(deckGeo, pillarMat);
   deck.position.set(0, 8.5, 0);
   group.add(deck);
   disposables.push(deckGeo);
+  }
 
   // 3. Roadside Warung Kiosks, Shophouse Facades & Corrugated Awnings
   const wallBrickMat = new THREE.MeshStandardMaterial({
-    color: 0xc2b29b,
+    color: theme.wallTint,
     map: concreteMap,
     roughness: 0.92,
   });
@@ -376,7 +394,7 @@ export function buildStreetEnvironment(
     metalness: 0.65,
   });
   const awningBlueMat = new THREE.MeshStandardMaterial({
-    color: 0x1d4ed8,
+    color: theme.awningColor,
     roughness: 0.78,
     metalness: 0.04,
   });
@@ -386,12 +404,12 @@ export function buildStreetEnvironment(
   });
   const bulbMat = new THREE.MeshStandardMaterial({
     color: 0xfef08a,
-    emissive: 0xf59e0b,
+    emissive: theme.lampColor,
     emissiveIntensity: 2.0,
   });
   const neonSignMat = new THREE.MeshStandardMaterial({
     color: 0xfef3c7,
-    emissive: 0xea580c,
+    emissive: theme.windowGlow,
     emissiveIntensity: 0.9,
     roughness: 0.4,
   });
@@ -406,7 +424,11 @@ export function buildStreetEnvironment(
     { x: 16.0, z: 16, w: 5.8, h: 6.4, d: 11, rotY: Math.PI },
   ];
 
-  buildingSpecs.forEach((b, idx) => {
+  const buildingOffset = halfRoad + 4.2;
+  buildingSpecs
+    .slice(0, Math.max(0, Math.min(buildingSpecs.length, layout.buildingCount)))
+    .map((b) => ({ ...b, x: b.x < 0 ? -buildingOffset : buildingOffset }))
+    .forEach((b, idx) => {
     const bg = new THREE.Group();
     bg.position.set(b.x, 0, b.z);
     bg.rotation.y = b.rotY;
@@ -471,13 +493,14 @@ export function buildStreetEnvironment(
   group.add(angkot);
 
   // 5. Streetlamps along the sidewalk (warm sodium-vapor light pools, capped at 4 PointLights)
-  const lampPositions: Array<[number, number]> = [
-    [-11.2, -16],
-    [11.2, -6],
-    [-11.2, 8],
-    [11.2, 18],
+  const lampX = halfRoad - 0.8;
+  const allLampPositions: Array<[number, number]> = [
+    [-lampX, -16],
+    [lampX, -6],
+    [-lampX, 8],
+    [lampX, 18],
   ];
-  lampPositions.forEach(([lx, lz], i) => {
+  allLampPositions.slice(0, Math.max(0, Math.min(4, layout.lamps))).forEach(([lx, lz], i) => {
     const poleGroup = new THREE.Group();
     poleGroup.position.set(lx, 0, lz);
     const pole = new THREE.Mesh(
@@ -496,7 +519,7 @@ export function buildStreetEnvironment(
     group.add(poleGroup);
 
     if (!isSoftwareGl || i < 3) {
-      const pl = new THREE.PointLight(0xffb454, 18, 26, 1.5);
+      const pl = new THREE.PointLight(theme.lampColor, theme.lampIntensity, 26, 1.5);
       pl.position.set(lx + (lx < 0 ? 1.35 : -1.35), 5.6, lz);
       group.add(pl);
       lampLights.push(pl);
@@ -505,9 +528,9 @@ export function buildStreetEnvironment(
 
   // 6. Warm Late-Afternoon Sunset Sky Horizon Glow & Distant City Skyline
   const sunsetBackdropMat = new THREE.MeshBasicMaterial({
-    color: 0xc2410c,
+    color: theme.horizonGlow,
     transparent: true,
-    opacity: 0.35,
+    opacity: theme.horizonGlowOpacity,
     fog: false,
   });
   const sunsetDisc = new THREE.Mesh(new THREE.PlaneGeometry(140, 36), sunsetBackdropMat);
@@ -520,10 +543,11 @@ export function buildStreetEnvironment(
     roughness: 0.95,
   });
   const windowLightMat = new THREE.MeshBasicMaterial({
-    color: 0xfde68a,
+    color: theme.windowGlow,
   });
   disposables.push(skylineMat, windowLightMat);
-  for (let i = 0; i < 12; i++) {
+  const skylineCount = layout.skyline ? 12 : 0;
+  for (let i = 0; i < skylineCount; i++) {
     const h = 14 + ((i * 7) % 18);
     const w = 6 + (i % 4) * 2;
     const tower = new THREE.Mesh(new THREE.BoxGeometry(w, h, 8), skylineMat);
@@ -537,6 +561,54 @@ export function buildStreetEnvironment(
       win.position.set(tower.position.x, h * 0.62, tower.position.z + 4.1);
       group.add(win);
     }
+  }
+
+  // 7. Perabot jalan tambahan sesuai map (cone, drum, spanduk)
+  const coneMat = new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.75 });
+  const coneBandMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.7 });
+  const drumMat = new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.8, metalness: 0.35 });
+  const bannerMat = new THREE.MeshStandardMaterial({
+    color: theme.windowGlow,
+    emissive: theme.horizonGlow,
+    emissiveIntensity: 0.5,
+    roughness: 0.6,
+    side: THREE.DoubleSide,
+  });
+  disposables.push(coneMat, coneBandMat, drumMat, bannerMat);
+
+  const coneGeo = new THREE.ConeGeometry(0.26, 0.72, 10);
+  const coneBandGeo = new THREE.CylinderGeometry(0.17, 0.2, 0.12, 10);
+  disposables.push(coneGeo, coneBandGeo);
+  for (let i = 0; i < layout.cones; i++) {
+    const cone = new THREE.Group();
+    const body = new THREE.Mesh(coneGeo, coneMat);
+    body.position.y = 0.36;
+    const band = new THREE.Mesh(coneBandGeo, coneBandMat);
+    band.position.y = 0.44;
+    cone.add(body, band);
+    const side = i % 2 === 0 ? -1 : 1;
+    cone.position.set(side * (halfRoad - 0.9 - (i % 3) * 0.7), 0, -14 + i * 4.6);
+    group.add(cone);
+  }
+
+  const drumGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.9, 14);
+  disposables.push(drumGeo);
+  for (let i = 0; i < layout.drums; i++) {
+    const drum = new THREE.Mesh(drumGeo, drumMat);
+    const side = i % 2 === 0 ? 1 : -1;
+    drum.position.set(side * (halfRoad - 1.7 - (i % 2) * 0.9), 0.45, 10 - i * 6);
+    drum.rotation.y = i * 0.7;
+    drum.castShadow = true;
+    group.add(drum);
+  }
+
+  const bannerGeo = new THREE.PlaneGeometry(Math.max(4, layout.roadWidth * 0.55), 1.1);
+  disposables.push(bannerGeo);
+  for (let i = 0; i < layout.banners; i++) {
+    const banner = new THREE.Mesh(bannerGeo, bannerMat);
+    banner.position.set(0, 4.6 + (i % 2) * 0.4, -20 + i * 9);
+    banner.rotation.y = (i % 2 === 0 ? 1 : -1) * 0.08;
+    group.add(banner);
   }
 
   return { group, lampLights, disposables };
