@@ -8,7 +8,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +16,24 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Kunci penandatangan TETAP (disimpan di repo) supaya APK versi baru bisa
+    // dipasang MENIMPA versi lama di HP tanpa harus uninstall dulu.
+    // Ini kunci sideload biasa, bukan kunci Play Store — bukan rahasia.
+    signingConfigs {
+        tawuran {
+            storeFile file('../keystore/tawuran-signing.p12')
+            storeType 'PKCS12'
+            storePassword 'tawuran2026'
+            keyAlias 'tawuran'
+            keyPassword 'tawuran2026'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.tawuran
+        }
         release {
+            signingConfig signingConfigs.tawuran
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

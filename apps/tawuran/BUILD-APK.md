@@ -35,8 +35,11 @@ apps/tawuran/
    **"Izinkan dari sumber ini"** (Install unknown apps) untuk browser/File Manager.
 5. Tekan **Instal** → **Buka**.
 
-> APK ini ditandatangani dengan debug key, jadi bisa dipasang langsung tanpa
-> Play Store. Kalau muncul "aplikasi tidak terpasang", hapus versi lama dulu.
+> APK ditandatangani dengan **kunci tetap** yang disimpan di
+> `android/keystore/tawuran-signing.p12`, jadi APK versi baru bisa dipasang
+> **menimpa** versi lama tanpa uninstall. Kalau muncul "aplikasi tidak
+> terpasang", kemungkinan versi di HP ditandatangani kunci lain → hapus dulu
+> aplikasi lamanya.
 
 ---
 
@@ -62,7 +65,7 @@ npm ci
 npm run build            # hasil web → dist/
 npx cap sync android     # salin dist/ ke proyek Android
 cd android
-./gradlew assembleDebug  # → app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease  # → app/build/outputs/apk/release/app-release.apk
 ```
 
 Atau buka folder `apps/tawuran/android` langsung di Android Studio lalu
