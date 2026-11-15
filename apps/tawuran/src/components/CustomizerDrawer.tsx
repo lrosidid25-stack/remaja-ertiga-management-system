@@ -113,7 +113,7 @@ export const CustomizerDrawer: React.FC<CustomizerDrawerProps> = ({
     <div className="fixed inset-0 z-30 pointer-events-none flex items-end md:items-stretch justify-start p-3 sm:p-5 [@media(max-height:520px)]:p-2">
       <aside
         aria-label="Panel Kustomisasi Karakter"
-        className={`pointer-events-auto w-full md:w-[430px] [@media(max-height:520px)]:w-[min(90vw,500px)] max-h-[86dvh] [@media(max-height:520px)]:max-h-[calc(100dvh-0.5rem)] md:max-h-full rounded-xl border shadow-2xl flex flex-col overflow-hidden ${panelClass}`}
+        className={`pointer-events-auto w-full md:w-[400px] [@media(max-height:520px)]:w-[min(62vw,380px)] max-h-[86dvh] [@media(max-height:520px)]:max-h-[calc(100dvh-0.5rem)] md:max-h-full rounded-xl border shadow-2xl flex flex-col overflow-hidden ${panelClass}`}
       >
         {/* Header */}
         <div
@@ -199,9 +199,8 @@ export const CustomizerDrawer: React.FC<CustomizerDrawerProps> = ({
               </button>
             </div>
             <p className={`mt-1.5 text-[11px] leading-snug ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
-              GLB memakai karakter modular (skeleton + socket aksesori) dari{' '}
-              <code>public/characters/base_humanoid.glb</code>. Kalau asetnya tidak
-              ada, game otomatis kembali ke model prosedural.
+              GLB = karakter modular (skeleton + socket aksesori). Kalau asetnya
+              tidak ada, otomatis kembali ke prosedural.
             </p>
           </div>
 

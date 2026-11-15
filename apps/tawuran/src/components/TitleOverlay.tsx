@@ -95,7 +95,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
       </div>
 
       {/* Main Left-Aligned Composition over negative space (Hero stands on right-center) */}
-      <div className="max-w-md [@media(max-height:520px)]:max-w-sm w-full min-h-0 flex-1 flex flex-col justify-center pointer-events-auto">
+      <div className="max-w-[344px] [@media(max-height:520px)]:max-w-[318px] w-full min-h-0 flex-1 flex flex-col justify-center pointer-events-auto">
         <div
           className={`flex flex-col min-h-0 max-h-full rounded-xl border shadow-2xl ${
             isDark
@@ -105,29 +105,8 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
         >
           {/* Body — bisa digeser kalau layar pendek, CTA di bawah selalu terlihat */}
           <div className="min-h-0 overflow-y-auto overscroll-contain custom-scrollbar touch-pan-y p-3.5 sm:p-5 pb-1">
-          <div className="max-w-[300px] [@media(max-height:700px)]:max-w-[250px] [@media(max-height:520px)]:max-w-[210px]">
+          <div className="max-w-[268px] [@media(max-height:700px)]:max-w-[228px] [@media(max-height:520px)]:max-w-[196px]">
             <TitleEmblemSvg isDark={isDark} />
-          </div>
-
-          {/* Active Loadout Summary - Unboxed clean metadata */}
-          <div
-            className={`mt-3 [@media(max-height:520px)]:mt-2 pt-2.5 [@media(max-height:520px)]:pt-2 border-t text-xs sm:text-sm flex flex-wrap items-center gap-x-2 gap-y-1 ${
-              isDark ? 'border-zinc-800 text-zinc-300' : 'border-zinc-200 text-zinc-700'
-            }`}
-          >
-            <span className="font-semibold">{config.name}</span>
-            <span aria-hidden="true">·</span>
-            <span>{activeWeaponSpec.shortName}</span>
-            <span aria-hidden="true">·</span>
-            <span>{activeThrowableSpec.shortName}</span>
-            {bestScore > 0 && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono-num text-amber-500 font-semibold">
-                  Rekor {bestScore.toLocaleString('id-ID')}
-                </span>
-              </>
-            )}
           </div>
 
           {/* Pemilih Map Jalanan (10 level) */}
@@ -201,8 +180,34 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
 
           </div>
 
+          {/* Active Loadout Summary - Unboxed clean metadata */}
+          <div
+            className={`mt-3 [@media(max-height:520px)]:mt-2 pt-2.5 [@media(max-height:520px)]:pt-2 border-t text-xs sm:text-sm flex flex-wrap items-center gap-x-2 gap-y-1 ${
+              isDark ? 'border-zinc-800 text-zinc-300' : 'border-zinc-200 text-zinc-700'
+            }`}
+          >
+            <span className="font-semibold">{config.name}</span>
+            <span aria-hidden="true">·</span>
+            <span>{activeWeaponSpec.shortName}</span>
+            <span aria-hidden="true">·</span>
+            <span>{activeThrowableSpec.shortName}</span>
+            {bestScore > 0 && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="font-mono-num text-amber-500 font-semibold">
+                  Rekor {bestScore.toLocaleString('id-ID')}
+                </span>
+              </>
+            )}
+          </div>
+
+
           {/* Clear Primary + Secondary CTAs */}
-          <div className="shrink-0 p-3.5 sm:p-5 pt-2.5 sm:pt-3 flex flex-col sm:flex-row gap-2 [@media(max-height:520px)]:gap-2">
+          <div
+            className={`shrink-0 p-3.5 sm:p-4 pt-2.5 sm:pt-3 flex flex-col sm:flex-row gap-2 [@media(max-height:520px)]:gap-2 border-t ${
+              isDark ? 'border-zinc-800' : 'border-zinc-200'
+            }`}
+          >
             <button
               type="button"
               data-start="true"
@@ -210,10 +215,10 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                 e.currentTarget.blur();
                 onStart();
               }}
-              className="flex-1 min-h-[44px] sm:min-h-[48px] [@media(max-height:560px)]:min-h-[40px] px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-display font-bold text-lg sm:text-xl tracking-wide flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg"
+              className="flex-1 min-h-[44px] sm:min-h-[48px] [@media(max-height:560px)]:min-h-[40px] px-3 py-2 rounded-lg bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-display font-bold text-base sm:text-lg tracking-wide flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer shadow-lg"
             >
-              <Play className="w-5 h-5 fill-current" />
-              <span>Mulai Tawuran</span>
+              <Play className="w-4 h-4 fill-current shrink-0" />
+              <span>Mulai</span>
             </button>
 
             <button
@@ -223,9 +228,9 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                 onOpenMabar();
               }}
               aria-label="Mabar Online"
-              className="min-h-[44px] sm:min-h-[48px] [@media(max-height:560px)]:min-h-[40px] px-3 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-1.5 border transition-colors cursor-pointer bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white"
+              className="min-h-[44px] sm:min-h-[48px] [@media(max-height:560px)]:min-h-[40px] px-2.5 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-1.5 border transition-colors cursor-pointer bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white"
             >
-              <Users className="w-4 h-4" />
+              <Users className="w-4 h-4 shrink-0" />
               <span className="whitespace-nowrap">Mabar</span>
             </button>
 
@@ -235,14 +240,14 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                 e.currentTarget.blur();
                 onOpenCustomizer();
               }}
-              className={`min-h-[44px] sm:min-h-[48px] [@media(max-height:560px)]:min-h-[40px] px-4 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border transition-colors cursor-pointer ${
+              className={`min-h-[44px] sm:min-h-[48px] [@media(max-height:560px)]:min-h-[40px] px-2.5 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-1.5 border transition-colors cursor-pointer ${
                 isDark
                   ? 'bg-zinc-900 border-zinc-700 text-zinc-100 hover:bg-zinc-800'
                   : 'bg-zinc-100 border-zinc-300 text-zinc-900 hover:bg-zinc-200'
               }`}
             >
-              <SlidersHorizontal className="w-4 h-4 text-amber-500" />
-              <span className="whitespace-nowrap">Kustomisasi</span>
+              <SlidersHorizontal className="w-4 h-4 shrink-0 text-amber-500" />
+              <span className="whitespace-nowrap">Atur</span>
             </button>
           </div>
         </div>

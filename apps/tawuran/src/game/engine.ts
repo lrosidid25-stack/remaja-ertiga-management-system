@@ -272,6 +272,8 @@ export class BrawlEngine {
   private hitstopTimer = 0;
   private cameraTrauma = 0;
   private titleTurntableAngle = 0.25;
+  /** Layar judul atau panel kustomisasi (menentukan posisi karakter di layar). */
+  private previewFocus: 'title' | 'customizer' = 'title';
   private camPos = new THREE.Vector3(0, 5.2, 13.5);
   private camLook = new THREE.Vector3(0, 1.2, 2);
 
@@ -603,6 +605,14 @@ export class BrawlEngine {
     }
     this.replacePlayerRig();
     return true;
+  }
+
+  /**
+   * Atur posisi karakter di layar judul: `customizer` menggesernya ke kanan
+   * supaya panel kustomisasi + tombol tidak menutupi animasi.
+   */
+  public setPreviewFocus(focus: 'title' | 'customizer'): void {
+    this.previewFocus = focus;
   }
 
   public getCharacterModel(): 'prosedural' | 'glb' {
@@ -1374,7 +1384,10 @@ export class BrawlEngine {
     if (this.gameState === 'title') {
       this.titleTurntableAngle += dt * 0.45;
       const previewYaw = Math.sin(this.titleTurntableAngle) * 0.55 + 0.15;
-      this.playerRig.root.position.set(0.8, 0, 6);
+      // Saat panel kustomisasi terbuka, karakter digeser ke kanan supaya tidak
+      // tertutup panel & tombol.
+      const previewX = this.previewFocus === 'customizer' ? 3.05 : 1.55;
+      this.playerRig.root.position.set(previewX, 0, 6);
       this.playerRig.root.rotation.set(0, previewYaw, 0);
       this.playerRig.root.scale.set(1, 1, 1);
       this.animateIdlePose(this.playerRig, performance.now() * 0.002);
@@ -1386,7 +1399,7 @@ export class BrawlEngine {
         this.playerGirVisual.update({
           dt,
           anchorPos: _v3,
-          fighterX: 0.8,
+          fighterX: previewX,
           fighterZ: 6,
           fighterYaw: previewYaw,
           lengthMeters: this.charConfig.girLengthMeters,
@@ -1405,8 +1418,10 @@ export class BrawlEngine {
         this.activeWeapon === 'gir_sabuk'
           ? ((this.charConfig.girLengthMeters - 2) / 4) * 1.2
           : 0;
-      _v1.set(0.1, 2.25 + lenExtra * 0.4, 11.4 + lenExtra);
-      _v2.set(-0.3, 1.15, 6);
+      const camX = this.previewFocus === 'customizer' ? 0.25 : 0.15;
+      const lookX = this.previewFocus === 'customizer' ? 1.65 : 1.0;
+      _v1.set(camX, 2.25 + lenExtra * 0.4, 11.4 + lenExtra);
+      _v2.set(lookX, 1.15, 6);
       const dampK = 1 - Math.exp(-5 * dt);
       this.camPos.lerp(_v1, dampK);
       this.camLook.lerp(_v2, dampK);

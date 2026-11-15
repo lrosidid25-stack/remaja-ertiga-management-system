@@ -173,6 +173,11 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Saat panel kustomisasi terbuka, geser karakter ke kanan supaya tidak tertutup panel.
+  useEffect(() => {
+    engineRef.current?.setPreviewFocus(customizerOpen ? 'customizer' : 'title');
+  }, [customizerOpen]);
+
   // Terapkan model karakter terpilih (GLB modular / prosedural) ke engine.
   useEffect(() => {
     const engine = engineRef.current;
