@@ -48,9 +48,9 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
   const activeThrowableSpec = THROWABLE_SPECS[config.throwable];
 
   return (
-    <div className="fixed inset-0 z-20 pointer-events-none flex flex-col justify-between p-3 sm:p-6 [@media(max-height:520px)]:p-3">
+    <div className="fixed inset-0 z-20 pointer-events-none flex flex-col gap-2 p-2.5 sm:p-5 [@media(max-height:520px)]:p-2.5">
       {/* Top-right compact utility controls */}
-      <div className="flex justify-end items-center gap-2 pointer-events-auto">
+      <div className="flex justify-end items-center gap-2 pointer-events-auto shrink-0">
         <button
           type="button"
           onClick={(e) => {
@@ -93,15 +93,17 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
       </div>
 
       {/* Main Left-Aligned Composition over negative space (Hero stands on right-center) */}
-      <div className="max-w-md [@media(max-height:520px)]:max-w-sm w-full my-auto pointer-events-auto">
+      <div className="max-w-md [@media(max-height:520px)]:max-w-sm w-full min-h-0 flex-1 flex flex-col justify-center pointer-events-auto">
         <div
-          className={`p-4 sm:p-6 [@media(max-height:520px)]:p-3.5 rounded-xl border shadow-2xl ${
+          className={`flex flex-col min-h-0 max-h-full rounded-xl border shadow-2xl ${
             isDark
-              ? 'bg-zinc-950/88 border-zinc-800 text-zinc-100'
-              : 'bg-white/92 border-zinc-300 text-zinc-900'
+              ? 'bg-zinc-950/90 border-zinc-800 text-zinc-100'
+              : 'bg-white/93 border-zinc-300 text-zinc-900'
           }`}
         >
-          <div className="[@media(max-height:520px)]:max-w-[235px]">
+          {/* Body — bisa digeser kalau layar pendek, CTA di bawah selalu terlihat */}
+          <div className="min-h-0 overflow-y-auto overscroll-contain custom-scrollbar touch-pan-y p-3.5 sm:p-5 pb-1">
+          <div className="max-w-[300px] [@media(max-height:700px)]:max-w-[250px] [@media(max-height:520px)]:max-w-[210px]">
             <TitleEmblemSvg isDark={isDark} />
           </div>
 
@@ -139,7 +141,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
               </div>
 
               <div
-                className="mt-1.5 custom-scrollbar overflow-x-auto overscroll-contain"
+                className="mt-1.5 custom-scrollbar overflow-x-auto overscroll-contain touch-pan-x"
                 role="group"
                 aria-label="Pilih map jalanan"
               >
@@ -159,7 +161,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                           e.currentTarget.blur();
                           onSelectLevel?.(lv.id);
                         }}
-                        className={`min-w-[54px] sm:min-w-[62px] min-h-[42px] px-2 py-1 rounded-lg border text-left transition-colors ${
+                        className={`min-w-[48px] sm:min-w-[56px] min-h-[38px] [@media(max-height:560px)]:min-h-[32px] px-1.5 py-1 rounded-lg border text-left transition-colors shrink-0 ${
                           locked
                             ? 'opacity-40 cursor-not-allowed'
                             : 'cursor-pointer'
@@ -171,10 +173,10 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                               : 'bg-white border-zinc-300 text-zinc-800 hover:bg-zinc-100'
                         }`}
                       >
-                        <span className="block font-mono-num font-bold text-sm leading-tight">
+                        <span className="block font-mono-num font-bold text-[13px] leading-tight">
                           {locked ? '🔒' : String(lv.id).padStart(2, '0')}
                         </span>
-                        <span className="block text-[9px] leading-tight truncate max-w-[62px]">
+                        <span className="block text-[9px] leading-tight truncate max-w-[58px]">
                           {locked ? 'terkunci' : lv.nama}
                         </span>
                       </button>
@@ -186,7 +188,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
               {(() => {
                 const lv = levels.find((l) => l.id === selectedLevel) ?? levels[0];
                 return (
-                  <p className={`mt-1 text-[10px] sm:text-[11px] leading-snug ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                  <p className={`mt-1 text-[10px] sm:text-[11px] leading-snug truncate ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
                     <span className="font-semibold text-amber-500">Map {lv.id}</span>{' '}
                     · {lv.lokasi} · kesulitan {lv.difficulty}/10
                   </p>
@@ -195,8 +197,10 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
             </div>
           )}
 
+          </div>
+
           {/* Clear Primary + Secondary CTAs */}
-          <div className="mt-4 [@media(max-height:520px)]:mt-3 flex flex-col sm:flex-row gap-2.5">
+          <div className="shrink-0 p-3.5 sm:p-5 pt-2.5 sm:pt-3 flex flex-col sm:flex-row gap-2 [@media(max-height:520px)]:gap-2">
             <button
               type="button"
               data-start="true"
@@ -204,7 +208,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                 e.currentTarget.blur();
                 onStart();
               }}
-              className="flex-1 min-h-[44px] sm:min-h-[48px] px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-display font-bold text-lg sm:text-xl tracking-wide flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg"
+              className="flex-1 min-h-[44px] sm:min-h-[48px] [@media(max-height:560px)]:min-h-[40px] px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-display font-bold text-lg sm:text-xl tracking-wide flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg"
             >
               <Play className="w-5 h-5 fill-current" />
               <span>Mulai Tawuran</span>
@@ -216,7 +220,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                 e.currentTarget.blur();
                 onOpenCustomizer();
               }}
-              className={`min-h-[44px] sm:min-h-[48px] px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border transition-colors cursor-pointer ${
+              className={`min-h-[44px] sm:min-h-[48px] [@media(max-height:560px)]:min-h-[40px] px-4 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border transition-colors cursor-pointer ${
                 isDark
                   ? 'bg-zinc-900 border-zinc-700 text-zinc-100 hover:bg-zinc-800'
                   : 'bg-zinc-100 border-zinc-300 text-zinc-900 hover:bg-zinc-200'
@@ -230,7 +234,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
       </div>
 
       {/* Single flat inline control-hint line */}
-      <div className="text-center">
+      <div className="text-center shrink-0 hidden [@media(min-height:400px)]:block">
         <p className="inline-block text-[11px] sm:text-sm font-medium text-zinc-200 hud-text-stroke">
           WASD Gerak · J / Klik Serang · K Tangkis · L / E Petasan · Spasi Hindar · 1-4 Ganti Senjata
         </p>
