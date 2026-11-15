@@ -1294,6 +1294,21 @@ export class BrawlEngine {
       return;
     }
 
+    // Pengaman pose: selama pemain masih hidup dan tidak sedang jatuh karena
+    // kalah, rig harus kembali berdiri. Tanpa ini rig bisa tertinggal miring
+    // (mis. setelah sempat tergeletak lalu dapat heal +25 antar-gelombang).
+    // (state 'paused'/'gameover' sudah di-return di atas)
+    if (this.playerHp > 0) {
+      if (Math.abs(this.playerRig.root.rotation.x) > 0.002) {
+        this.playerRig.root.rotation.x = THREE.MathUtils.damp(
+          this.playerRig.root.rotation.x,
+          0,
+          12,
+          dt,
+        );
+      }
+    }
+
     // Hitstop freeze frames on heavy strikes / explosions
     if (this.hitstopTimer > 0) {
       this.hitstopTimer -= dt;

@@ -107,7 +107,7 @@ export const CustomizerDrawer: React.FC<CustomizerDrawerProps> = ({
     <div className="fixed inset-0 z-30 pointer-events-none flex items-end md:items-stretch justify-start p-3 sm:p-5 [@media(max-height:520px)]:p-2">
       <aside
         aria-label="Panel Kustomisasi Karakter"
-        className={`pointer-events-auto w-full md:w-[430px] [@media(max-height:520px)]:w-[390px] max-h-[68vh] md:max-h-full rounded-xl border shadow-2xl flex flex-col overflow-hidden ${panelClass}`}
+        className={`pointer-events-auto w-full md:w-[430px] [@media(max-height:520px)]:w-[min(90vw,500px)] max-h-[86dvh] [@media(max-height:520px)]:max-h-[calc(100dvh-0.5rem)] md:max-h-full rounded-xl border shadow-2xl flex flex-col overflow-hidden ${panelClass}`}
       >
         {/* Header */}
         <div
@@ -153,7 +153,7 @@ export const CustomizerDrawer: React.FC<CustomizerDrawerProps> = ({
         </div>
 
         {/* Scrollable options */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 [@media(max-height:520px)]:p-3 space-y-5 [@media(max-height:520px)]:space-y-3.5">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar p-4 [@media(max-height:520px)]:p-3 space-y-5 [@media(max-height:520px)]:space-y-3.5">
           {/* Nama Pelajar */}
           <div>
             <label htmlFor="char-name-input" className={sectionLabelClass}>
