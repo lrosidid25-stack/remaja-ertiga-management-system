@@ -112,3 +112,9 @@ test('progres level terbuka bertambah dan berhenti di level terakhir', () => {
   assert.equal(unlockNextLevel(1), 2);
   assert.equal(unlockNextLevel(MAX_LEVEL), MAX_LEVEL);
 });
+
+test('menang di map terakhir tidak menambah level di luar batas', () => {
+  assert.equal(unlockNextLevel(1), 2, 'menang map 1 membuka map 2');
+  assert.equal(unlockNextLevel(9), 10, 'menang map 9 membuka map 10');
+  assert.equal(unlockNextLevel(10), MAX_LEVEL, 'map 10 tetap 10 (tidak ada map 11)');
+});

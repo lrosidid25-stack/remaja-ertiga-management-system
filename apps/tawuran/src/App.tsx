@@ -350,6 +350,26 @@ export default function App() {
     engineRef.current?.startIntro();
   }, [handleActivateLandscape, closeMabarSession, resetMabarUi]);
 
+  // Map berikutnya yang boleh dilanjutkan setelah menang (null kalau sudah map 10).
+  const nextLevelInfo = (() => {
+    if (hud.state !== 'gameover' || !hud.isVictory || hud.net) return null;
+    const nextId = hud.level + 1;
+    if (nextId > MAX_LEVEL) return null;
+    const level = LEVELS[nextId - 1];
+    return level ? { id: level.id, nama: level.nama } : null;
+  })();
+
+  const handleNextLevel = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const next = Math.min(MAX_LEVEL, hud.level + 1);
+    closeMabarSession();
+    resetMabarUi();
+    setCustomizerOpen(false);
+    setSelectedLevel(next);
+    engine.startLevel(next);
+  }, [hud.level, closeMabarSession, resetMabarUi]);
+
   const handleRestartDirect = useCallback(() => {
     closeMabarSession();
     resetMabarUi();
@@ -511,8 +531,10 @@ export default function App() {
       <GameModal
         hud={hud}
         theme={theme}
+        nextLevel={nextLevelInfo}
         onResume={() => engineRef.current?.resumeGame()}
         onRestart={handleRestartDirect}
+        onNextLevel={handleNextLevel}
         onCustomize={() => {
           engineRef.current?.returnToTitle();
           setCustomizerOpen(true);

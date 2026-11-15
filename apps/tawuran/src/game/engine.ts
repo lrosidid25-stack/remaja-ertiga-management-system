@@ -7,6 +7,7 @@ import {
   clampLevelId,
   getLevel,
   loadUnlockedLevel,
+  saveUnlockedLevel,
   unlockNextLevel,
   buildWaveConfig,
   type LevelConfig,
@@ -3608,6 +3609,24 @@ export class BrawlEngine {
   /** Level tertinggi yang sudah terbuka. */
   public getUnlockedLevel(): number {
     return this.unlockedLevel;
+  }
+
+  /**
+   * Langsung mulai map tertentu (dipakai tombol "Lanjut ke Map N" setelah menang).
+   * Level ini sekaligus dibuka & disimpan, jadi progres tidak bisa "nyangkut".
+   */
+  public startLevel(id: number): void {
+    const target = clampLevelId(id);
+    this.unlockedLevel = Math.max(this.unlockedLevel, target);
+    saveUnlockedLevel(this.unlockedLevel);
+
+    if (target !== this.levelId) {
+      this.levelId = target;
+      this.level = getLevel(target);
+      this.maxWaves = this.level.waveCount;
+      this.buildEnvironmentForLevel();
+    }
+    this.startGame();
   }
 
   /** Pilih level dari layar judul. Level yang masih terkunci akan diabaikan. */

@@ -1,12 +1,15 @@
 import React from 'react';
-import { Home, Play, RotateCcw, SlidersHorizontal, Trophy, Skull } from 'lucide-react';
+import { ChevronRight, Home, Play, RotateCcw, SlidersHorizontal, Trophy, Skull } from 'lucide-react';
 import type { HudSnapshot, ThemeMode } from '../game/types';
 
 interface GameModalProps {
   hud: HudSnapshot;
   theme: ThemeMode;
+  /** Map berikutnya yang sudah terbuka (null kalau ini map terakhir / belum terbuka). */
+  nextLevel?: { id: number; nama: string } | null;
   onResume: () => void;
   onRestart: () => void;
+  onNextLevel?: () => void;
   onCustomize: () => void;
   onReturnTitle: () => void;
 }
@@ -14,11 +17,14 @@ interface GameModalProps {
 export const GameModal: React.FC<GameModalProps> = ({
   hud,
   theme,
+  nextLevel = null,
   onResume,
   onRestart,
+  onNextLevel,
   onCustomize,
   onReturnTitle,
 }) => {
+  const canContinue = Boolean(hud.isVictory && nextLevel && onNextLevel);
   const isDark = theme === 'dark';
   const isPaused = hud.state === 'paused';
   const isGameOver = hud.state === 'gameover';
@@ -106,7 +112,9 @@ export const GameModal: React.FC<GameModalProps> = ({
                 </h2>
                 <p className={`text-sm [@media(max-height:520px)]:text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
                   {hud.isVictory
-                    ? 'Semua gelombang lawan berhasil dipukul mundur.'
+                    ? nextLevel
+                      ? `Map ${nextLevel.id} · ${nextLevel.nama} sudah terbuka!`
+                      : 'Semua gelombang lawan berhasil dipukul mundur.'
                     : `Terhenti di Gelombang ${hud.wave} dari ${hud.maxWaves}.`}
                 </p>
               </div>
@@ -154,25 +162,62 @@ export const GameModal: React.FC<GameModalProps> = ({
             </div>
 
             <div className="mt-5 [@media(max-height:520px)]:mt-3 flex flex-col gap-3 [@media(max-height:520px)]:gap-2">
-              <button
-                type="button"
-                data-start="true"
-                onClick={onRestart}
-                className="min-h-[48px] [@media(max-height:520px)]:min-h-[44px] px-5 py-3 [@media(max-height:520px)]:py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-display font-bold text-xl [@media(max-height:520px)]:text-lg tracking-wide flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <RotateCcw className="w-5 h-5" />
-                <span>{hud.isVictory ? 'Main Lagi' : 'Coba Lagi'}</span>
-              </button>
+              {canContinue && (
+                <button
+                  type="button"
+                  data-start="true"
+                  onClick={onNextLevel}
+                  className="min-h-[52px] [@media(max-height:520px)]:min-h-[46px] px-5 py-3 [@media(max-height:520px)]:py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-display font-bold text-xl [@media(max-height:520px)]:text-lg tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                  <span>Lanjut ke Map {nextLevel?.id}</span>
+                </button>
+              )}
+
+              {!canContinue && (
+                <button
+                  type="button"
+                  data-start="true"
+                  onClick={onRestart}
+                  className="min-h-[48px] [@media(max-height:520px)]:min-h-[44px] px-5 py-3 [@media(max-height:520px)]:py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-display font-bold text-xl [@media(max-height:520px)]:text-lg tracking-wide flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  <span>{hud.isVictory ? 'Main Lagi' : 'Coba Lagi'}</span>
+                </button>
+              )}
 
               <div className="grid grid-cols-2 gap-3 [@media(max-height:520px)]:gap-2">
-                <button type="button" onClick={onCustomize} className={secondaryBtnClass}>
-                  <SlidersHorizontal className="w-4 h-4" />
-                  <span>Kustomisasi</span>
-                </button>
-                <button type="button" onClick={onReturnTitle} className={secondaryBtnClass}>
-                  <Home className="w-4 h-4" />
-                  <span>Beranda</span>
-                </button>
+                {canContinue ? (
+                  <>
+                    <button type="button" onClick={onRestart} className={secondaryBtnClass}>
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Main Lagi</span>
+                    </button>
+                    <button type="button" onClick={onCustomize} className={secondaryBtnClass}>
+                      <SlidersHorizontal className="w-4 h-4" />
+                      <span>Kustomisasi</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onReturnTitle}
+                      className={`${secondaryBtnClass} col-span-2`}
+                    >
+                      <Home className="w-4 h-4" />
+                      <span>Beranda</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={onCustomize} className={secondaryBtnClass}>
+                      <SlidersHorizontal className="w-4 h-4" />
+                      <span>Kustomisasi</span>
+                    </button>
+                    <button type="button" onClick={onReturnTitle} className={secondaryBtnClass}>
+                      <Home className="w-4 h-4" />
+                      <span>Beranda</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </>
