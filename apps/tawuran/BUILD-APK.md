@@ -38,6 +38,17 @@ kustomisasi karakter, prolog 4 beat, pertarungan gir 2 m vs 6 m, dan tampilan HP
 
 ## 1. Cara memasang APK di HP (itel RS4)
 
+**Paling gampang:** scan QR ini dengan kamera HP (atau Google Lens), lalu buka
+tautannya di browser.
+
+<img src="docs/download-qr.png" alt="QR unduhan APK" width="260" />
+
+Atau salin tautan ini ke browser HP:
+
+```
+https://github.com/lrosidid25-stack/remaja-ertiga-management-system/releases/download/apk-terbaru/tawuran-jalanan-sore.apk
+```
+
 1. Buka tautan rilis di browser HP:
    `https://github.com/lrosidid25-stack/remaja-ertiga-management-system/releases/download/apk-terbaru/tawuran-jalanan-sore.apk`
 2. File `tawuran-jalanan-sore.apk` akan terunduh.
