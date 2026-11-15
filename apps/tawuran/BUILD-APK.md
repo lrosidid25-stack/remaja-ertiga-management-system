@@ -74,40 +74,50 @@ Atau buka folder `apps/tawuran/android` langsung di Android Studio lalu
 
 ---
 
-## 4. Memasukkan kode game yang sebenarnya
+## 4. Status kode game & cara menggantinya
 
-File yang sudah ada di `src/`: `main.tsx`, `App.tsx`, `index.css`.
+| File | Status |
+| --- | --- |
+| `src/main.tsx`, `src/App.tsx`, `src/index.css` | ✅ asli dari AI Studio |
+| `src/components/*.tsx` (8 file, termasuk `SvgIcons`, `TouchControls`) | ✅ asli |
+| `src/game/types.ts` | 🟡 **rekonstruksi** — bentuk data disusun ulang dari pemakaian komponen |
+| `src/game/rules.ts` | 🟡 **rekonstruksi** — statistik senjata masih angka sementara |
+| `src/game/engine.ts` | 🟠 **placeholder** — scene jalanan + gerak dasar, tanpa pertarungan |
 
-Masih **kurang 9 modul** yang di-import oleh `App.tsx` — cek kapan saja dengan:
+Cek kapan saja:
 
 ```bash
-npm run check:src          # daftar file yang hilang
-npm run check:src -- --list  # hanya nama file
+npm run check:src     # ✔ kalau semua import relatif tersedia
+npm run lint          # tsc --noEmit
+npm run build         # bundel web → dist/
 ```
 
-| File yang belum ada | Dipakai untuk |
-| --- | --- |
-| `src/game/engine.ts` | `BrawlEngine` — mesin Three.js (canvas, render loop, input) |
-| `src/game/rules.ts` | `clampGirLength` — aturan panjang gir |
-| `src/game/types.ts` | `DEFAULT_CHARACTER`, `CharacterConfig`, `HudSnapshot`, `ThemeMode`, `WeaponId` |
-| `src/components/TitleOverlay.tsx` | layar judul |
-| `src/components/IntroOverlay.tsx` | adegan pembuka |
-| `src/components/CustomizerDrawer.tsx` | kustomisasi karakter |
-| `src/components/GameHud.tsx` | HUD saat bermain |
-| `src/components/GameModal.tsx` | jeda / hasil akhir |
-| `src/components/RotatePrompt.tsx` | ajakan memutar HP |
+### Mengganti dengan file asli
 
-Cara termudah: di AI Studio buka **Settings → Download project** (atau
-*Export to ZIP*), lalu salin **seluruh isi folder `src/`** ke `apps/tawuran/src/`,
-dan taruh aset statis (model, tekstur, audio) di `apps/tawuran/public/`.
+Timpa langsung ketiga file itu, lalu:
 
-Kalau semua sudah lengkap, `npm run check:src` akan mencetak
-`✔ src/ lengkap`, dan build APK otomatis jalan lagi.
+```bash
+npm run lint && npm run build     # pastikan lolos
+npm run check:src                 # harus ✔
+git commit -am "feat: engine asli" && git push
+```
 
-> **Gerbang CI:** selama `check:src` gagal, workflow sengaja **tidak**
-> membangun APK dan **tidak** menyentuh rilis `apk-terbaru`, supaya APK yang
-> sudah bisa dipasang tidak rusak. Setelah sumber lengkap, push berikutnya
-> langsung menerbitkan APK game yang asli.
+APK baru terbit otomatis di rilis `apk-terbaru`.
+
+> **Gerbang CI:** workflow hanya membangun APK kalau `check:src` lulus. Kalau
+> ada modul yang hilang, build dilewati dan rilis lama tidak disentuh, supaya
+> APK yang sudah bisa dipasang tidak pernah rusak.
+
+### Tanda di aplikasi
+
+`engine.ts` placeholder menampilkan label kecil di kiri-bawah:
+
+```
+PRATINJAU — engine asli belum diunggah (gerak dasar saja)
+```
+
+Label itu dibuat oleh `engine.ts` sendiri (bukan komponen React), jadi otomatis
+hilang begitu file asli dipasang.
 
 ## 5. Regenerasi ikon & splash
 

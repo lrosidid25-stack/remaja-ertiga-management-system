@@ -1,4 +1,4 @@
-# Tekstur game
+# Tekstur game (`public/textures/`)
 
 Aset di folder ini disalin apa adanya ke dalam APK (Vite `public/`), jadi
 **tidak perlu** di-import lewat bundler.
