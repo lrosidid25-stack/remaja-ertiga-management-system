@@ -99,12 +99,15 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Rename APK
+      - name: Rename APK + buat ZIP
         if: steps.src.outputs.complete == 'true'
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/release/app-release.apk \
              out/tawuran-jalanan-sore.apk
+          # Versi ZIP untuk yang lebih suka mengunduh satu paket
+          (cd out && rm -f tawuran-jalanan-sore.zip \
+             && zip -9 -q tawuran-jalanan-sore.zip tawuran-jalanan-sore.apk)
           ls -lh out/
 
       - name: Verify APK (paket, versi, tanda tangan)
@@ -119,12 +122,14 @@ jobs:
           "$BT/apksigner" verify --print-certs out/tawuran-jalanan-sore.apk
           "$BT/apksigner" verify --verbose out/tawuran-jalanan-sore.apk | head -20
 
-      - name: Upload APK artifact
+      - name: Upload APK + ZIP artifact
         if: steps.src.outputs.complete == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: tawuran-jalanan-sore-apk
-          path: apps/tawuran/out/tawuran-jalanan-sore.apk
+          path: |
+            apps/tawuran/out/tawuran-jalanan-sore.apk
+            apps/tawuran/out/tawuran-jalanan-sore.zip
           if-no-files-found: error
 
       # Publikasi ke GitHub Releases → link unduhan langsung (tanpa login)
@@ -144,7 +149,14 @@ jobs:
             APK ditandatangani dengan kunci tetap, jadi versi baru bisa dipasang
             menimpa versi lama tanpa uninstall.
 
+            Dua pilihan unduhan:
+            - tawuran-jalanan-sore.apk  → langsung ketuk & instal
+            - tawuran-jalanan-sore.zip  → ekstrak dulu (file manager), lalu
+              ketuk APK hasil ekstrak untuk memasang
+
             Build #${{ github.run_number }} dari commit ${{ github.sha }}.
-          files: apps/tawuran/out/tawuran-jalanan-sore.apk
+          files: |
+            apps/tawuran/out/tawuran-jalanan-sore.apk
+            apps/tawuran/out/tawuran-jalanan-sore.zip
           fail_on_unmatched_files: true
           make_latest: true
