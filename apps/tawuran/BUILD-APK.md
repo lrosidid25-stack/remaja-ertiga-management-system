@@ -41,7 +41,16 @@ kustomisasi karakter, prolog 4 beat, pertarungan gir 2 m vs 6 m, dan tampilan HP
 **Paling gampang:** scan QR ini dengan kamera HP (atau Google Lens), lalu buka
 tautannya di browser.
 
-<img src="docs/download-qr.png" alt="QR unduhan APK" width="260" />
+<table>
+<tr>
+<td align="center"><img src="docs/download-qr.png" alt="QR unduhan APK" width="220" /><br/><b>Langsung APK</b></td>
+<td align="center"><img src="docs/download-qr-zip.png" alt="QR unduhan ZIP" width="220" /><br/><b>Paket ZIP</b></td>
+</tr>
+</table>
+
+Kalau memilih **paket ZIP** (`tawuran-jalanan-sore.zip`): unduh → ekstrak dengan
+File Manager → ketuk `tawuran-jalanan-sore.apk` hasil ekstrak. Android **tidak
+bisa** memasang APK langsung dari dalam ZIP tanpa diekstrak dulu.
 
 Atau salin tautan ini ke browser HP:
 
