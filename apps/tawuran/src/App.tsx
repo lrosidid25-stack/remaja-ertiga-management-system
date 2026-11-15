@@ -20,6 +20,17 @@ import { MabarSession, warmUpMabarServer, type MabarRole } from './net/mabar';
 import { makeRoomCode, type MabarProfile } from './net/mabar-protocol';
 
 const CHAR_STORAGE_KEY = 'tawuran_char_config_v1';
+const MODEL_MODE_STORAGE_KEY = 'tawuran_model_mode_v1';
+
+type CharacterModelMode = 'prosedural' | 'glb';
+
+function loadModelMode(): CharacterModelMode {
+  try {
+    return localStorage.getItem(MODEL_MODE_STORAGE_KEY) === 'glb' ? 'glb' : 'prosedural';
+  } catch {
+    return 'prosedural';
+  }
+}
 
 const INITIAL_HUD: HudSnapshot = {
   state: 'title',
@@ -90,6 +101,7 @@ export default function App() {
   const [charConfig, setCharConfig] = useState<CharacterConfig>(loadSavedCharacter);
   const [hud, setHud] = useState<HudSnapshot>(INITIAL_HUD);
   const [customizerOpen, setCustomizerOpen] = useState(false);
+  const [modelMode, setModelMode] = useState<CharacterModelMode>(loadModelMode);
   const [theme, setTheme] = useState<ThemeMode>('dark');
   const [muted, setMuted] = useState(false);
   const [isPortraitMobile, setIsPortraitMobile] = useState(false);
@@ -159,6 +171,37 @@ export default function App() {
       engineRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Terapkan model karakter terpilih (GLB modular / prosedural) ke engine.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    let alive = true;
+    void engine.setCharacterModel(modelMode).then((ok) => {
+      if (!alive || ok) return;
+      if (modelMode === 'glb') {
+        // Aset GLB tidak tersedia → balik ke prosedural supaya pemain tahu.
+        setModelMode('prosedural');
+        try {
+          localStorage.setItem(MODEL_MODE_STORAGE_KEY, 'prosedural');
+        } catch {
+          // Ignore
+        }
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [modelMode]);
+
+  const handleChangeModelMode = useCallback((mode: CharacterModelMode) => {
+    setModelMode(mode);
+    try {
+      localStorage.setItem(MODEL_MODE_STORAGE_KEY, mode);
+    } catch {
+      // Ignore
+    }
   }, []);
 
   const handleActivateLandscape = useCallback(async () => {
@@ -422,7 +465,9 @@ export default function App() {
         <CustomizerDrawer
           config={charConfig}
           theme={theme}
+          modelMode={modelMode}
           onChange={handleConfigChange}
+          onChangeModelMode={handleChangeModelMode}
           onBack={() => setCustomizerOpen(false)}
           onStart={handleStartWithIntro}
         />

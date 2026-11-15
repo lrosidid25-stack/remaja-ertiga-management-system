@@ -20,10 +20,14 @@ import {
   type ThrowableId,
 } from '../game/types';
 
+export type CharacterModelMode = 'prosedural' | 'glb';
+
 interface CustomizerDrawerProps {
   config: CharacterConfig;
   theme: ThemeMode;
+  modelMode: CharacterModelMode;
   onChange: (next: CharacterConfig) => void;
+  onChangeModelMode: (mode: CharacterModelMode) => void;
   onBack: () => void;
   onStart: () => void;
 }
@@ -72,7 +76,9 @@ const SLAYER_COLORS = [
 export const CustomizerDrawer: React.FC<CustomizerDrawerProps> = ({
   config,
   theme,
+  modelMode,
   onChange,
+  onChangeModelMode,
   onBack,
   onStart,
 }) => {
@@ -171,6 +177,32 @@ export const CustomizerDrawer: React.FC<CustomizerDrawerProps> = ({
                   : 'bg-zinc-50 border-zinc-300 text-zinc-900'
               }`}
             />
+          </div>
+
+          {/* Model Karakter: prosedural vs GLB modular */}
+          <div>
+            <div className={sectionLabelClass}>Model Karakter 3D</div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onChangeModelMode('prosedural')}
+                className={chipClass(modelMode === 'prosedural')}
+              >
+                Prosedural (bawaan)
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeModelMode('glb')}
+                className={chipClass(modelMode === 'glb')}
+              >
+                GLB Modular
+              </button>
+            </div>
+            <p className={`mt-1.5 text-[11px] leading-snug ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+              GLB memakai karakter modular (skeleton + socket aksesori) dari{' '}
+              <code>public/characters/base_humanoid.glb</code>. Kalau asetnya tidak
+              ada, game otomatis kembali ke model prosedural.
+            </p>
           </div>
 
           {/* Seragam & Jaket */}

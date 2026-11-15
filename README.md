@@ -39,6 +39,20 @@ setelah peta sebelumnya ditamatkan; kemajuan disimpan di HP (offline).
 Tiap peta punya jumlah gelombang, HP & kecepatan lawan, jumlah teman satu
 geng, serta bos `pentolan` di gelombang terakhir yang berbeda-beda.
 
+### 🧍 Karakter modular (Blender → GLB → three.js)
+
+Model pemain bisa diganti di **Kustomisasi → Model Karakter 3D**:
+
+- **Prosedural (bawaan)** — rig kode (`src/game/models.ts`), selalu tersedia.
+- **GLB Modular** — `public/characters/base_humanoid.glb`: skeleton humanoid
+  21 tulang + 6 socket aksesori (rambut, topi, kacamata, masker, tas, jaket).
+  Kalau asetnya hilang/rusak, game otomatis kembali ke prosedural.
+
+Aset GLB dibuat ulang tanpa dependensi dengan `npm run build:glb` (otomatis
+sebelum `npm run build`). Untuk bikin model sendiri di Blender:
+`apps/tawuran/blender/modular_character.py` + panduan di
+[apps/tawuran/blender/README.md](apps/tawuran/blender/README.md).
+
 ### 🎮 Mabar Online (duel 1 lawan 1)
 
 Di layar judul ketuk tombol hijau **Mabar**:

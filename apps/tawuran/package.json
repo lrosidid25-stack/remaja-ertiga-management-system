@@ -1,10 +1,12 @@
 {
   "name": "tawuran-jalanan-sore",
   "private": true,
-  "version": "0.6.1",
+  "version": "0.7.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
+    "build:glb": "node scripts/build-base-glb.mjs",
+    "prebuild": "npm run build:glb",
     "build": "vite build",
     "preview": "vite preview --port=3000 --host=0.0.0.0",
     "lint": "tsc --noEmit",

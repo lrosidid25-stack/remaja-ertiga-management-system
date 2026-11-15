@@ -2,19 +2,21 @@ import * as THREE from 'three';
 import type { CharacterConfig, EnemyArchetype, WeaponId } from './types';
 
 export interface FighterRig {
-  root: THREE.Group;
-  hips: THREE.Group;
-  torso: THREE.Group;
-  head: THREE.Group;
-  leftShoulder: THREE.Group;
-  leftElbow: THREE.Group;
-  rightShoulder: THREE.Group;
-  rightElbow: THREE.Group;
-  weaponMount: THREE.Group;
-  leftHip: THREE.Group;
-  leftKnee: THREE.Group;
-  rightHip: THREE.Group;
-  rightKnee: THREE.Group;
+  // Sengaja `Object3D` (bukan `Group`) supaya rig dari GLB bisa memakai
+  // tulang (`THREE.Bone`) sebagai sendi tanpa kehilangan tipe.
+  root: THREE.Object3D;
+  hips: THREE.Object3D;
+  torso: THREE.Object3D;
+  head: THREE.Object3D;
+  leftShoulder: THREE.Object3D;
+  leftElbow: THREE.Object3D;
+  rightShoulder: THREE.Object3D;
+  rightElbow: THREE.Object3D;
+  weaponMount: THREE.Object3D;
+  leftHip: THREE.Object3D;
+  leftKnee: THREE.Object3D;
+  rightHip: THREE.Object3D;
+  rightKnee: THREE.Object3D;
   shadowDisc: THREE.Mesh;
   telegraphRing: THREE.Mesh;
   hpBarGroup: THREE.Group | null;

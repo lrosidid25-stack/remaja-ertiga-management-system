@@ -13,6 +13,7 @@ import {
 } from './maps';
 import { FlexibleGirVisual } from './flexibleGir';
 import { buildFighterRig, buildPetasanMesh, buildWeaponMesh, type FighterRig } from './models';
+import { buildGlbFighterRig, loadBaseCharacterScene } from './glbCharacter';
 import {
   ALLY_SQUAD_SPECS,
   ARENA_BOUNDS,
@@ -310,6 +311,10 @@ export class BrawlEngine {
   private envDisposables: Array<{ dispose: () => void }> = [];
 
   // --- MABAR ONLINE (duel 1 lawan 1) ---
+  /** Model pemain: rig prosedural bawaan atau karakter GLB modular. */
+  private characterModel: 'prosedural' | 'glb' = 'prosedural';
+  private glbScene: THREE.Object3D | null = null;
+
   private netMode = false;
   private netRole: 'host' | 'guest' = 'host';
   private netPeerName = '';
@@ -532,11 +537,27 @@ export class BrawlEngine {
     this.activeThrowable = next.throwable;
 
     // Rebuild player rig live so customization previews immediately in 3D
+    this.replacePlayerRig();
+    this.emitHud();
+  }
+
+  /** Buat rig pemain sesuai model terpilih (GLB kalau tersedia, kalau tidak prosedural). */
+  private createPlayerRig(): FighterRig {
+    if (this.characterModel === 'glb' && this.glbScene) {
+      const glbRig = buildGlbFighterRig(this.glbScene, this.activeWeapon, {
+        castShadow: !this.isSoftwareGl,
+      });
+      if (glbRig) return glbRig;
+      // Aset GLB rusak/tidak lengkap → jangan biarkan game tanpa karakter.
+      this.characterModel = 'prosedural';
+    }
+    return buildFighterRig({ ...this.charConfig, primaryWeapon: this.activeWeapon }, false);
+  }
+
+  /** Ganti rig pemain di tempat (dipakai kustomisasi & ganti model). */
+  private replacePlayerRig(): void {
     this.scene.remove(this.playerRig.root);
-    this.playerRig = buildFighterRig(
-      { ...this.charConfig, primaryWeapon: this.activeWeapon },
-      false,
-    );
+    this.playerRig = this.createPlayerRig();
     this.playerRig.root.position.set(this.playerX, 0, this.playerZ);
     this.playerRig.root.rotation.y = this.playerYaw;
     this.scene.add(this.playerRig.root);
@@ -546,6 +567,7 @@ export class BrawlEngine {
     this.heldPetasanMesh.visible = false;
     this.playerRig.leftElbow.add(this.heldPetasanMesh);
 
+    this.resetRigPose(this.playerRig);
     this.playerRig.root.updateMatrixWorld(true);
     if (this.activeWeapon === 'gir_sabuk' && this.playerRig.girAnchor) {
       this.playerGirVisual.setVisible(true);
@@ -559,7 +581,31 @@ export class BrawlEngine {
     } else {
       this.playerGirVisual.setVisible(false);
     }
-    this.emitHud();
+  }
+
+  /**
+   * Pilih model karakter: 'prosedural' (bawaan) atau 'glb' (karakter modular).
+   * Mengembalikan false kalau GLB gagal dimuat (game tetap pakai prosedural).
+   */
+  public async setCharacterModel(mode: 'prosedural' | 'glb'): Promise<boolean> {
+    if (mode === 'glb') {
+      if (!this.glbScene) this.glbScene = await loadBaseCharacterScene();
+      if (this.disposed) return false;
+      if (!this.glbScene) {
+        this.characterModel = 'prosedural';
+        this.replacePlayerRig();
+        return false;
+      }
+      this.characterModel = 'glb';
+    } else {
+      this.characterModel = 'prosedural';
+    }
+    this.replacePlayerRig();
+    return true;
+  }
+
+  public getCharacterModel(): 'prosedural' | 'glb' {
+    return this.characterModel;
   }
 
   public setGirLength(meters: number): void {
