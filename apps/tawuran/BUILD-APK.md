@@ -7,7 +7,8 @@ otomatis membuat file `.apk`.
 ```
 apps/tawuran/
 ├── index.html, package.json, vite.config.ts   # proyek web (dari AI Studio)
-├── src/                                        # ⚠️ kode game — saat ini placeholder
+├── src/                                        # ⚠️ kode game — masih kurang 9 modul
+├── public/textures/                            # tekstur (asphalt, concrete) → ikut ke APK
 ├── assets/icon.png                             # ikon sumber 1024×1024
 ├── capacitor.config.ts                         # konfigurasi aplikasi Android
 └── android/                                    # proyek Android (Gradle)
