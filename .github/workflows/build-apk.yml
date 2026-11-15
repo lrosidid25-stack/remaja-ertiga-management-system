@@ -81,6 +81,17 @@ jobs:
              out/tawuran-jalanan-sore.apk
           ls -lh out/
 
+      - name: Verify APK (paket, versi, tanda tangan)
+        run: |
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          BT=$(ls -d "$SDK"/build-tools/*/ 2>/dev/null | tail -1)
+          echo "== badging =="
+          "$BT/aapt" dump badging out/tawuran-jalanan-sore.apk \
+            | grep -E "package:|sdkVersion|targetSdkVersion|application-label|native-code" || true
+          echo "== apksigner =="
+          "$BT/apksigner" verify --print-certs out/tawuran-jalanan-sore.apk
+          "$BT/apksigner" verify --verbose out/tawuran-jalanan-sore.apk | head -20
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
