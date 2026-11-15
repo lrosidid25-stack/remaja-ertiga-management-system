@@ -1,0 +1,38 @@
+name: Supabase keep-alive
+
+# Proyek Supabase gratis otomatis di-pause kalau ~7 hari tidak ada aktivitas.
+# Mabar Online memakai Realtime dari proyek ini, jadi sekali sehari kami
+# menembak REST API-nya supaya proyek tetap bangun dan mabar tidak mati.
+# Anon key di bawah memang kunci publik (sama seperti yang ada di aplikasi).
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping project Supabase (REST)
+        env:
+          SUPABASE_URL: https://rilnglxfbbzmxvmxlsjm.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpbG5nbHhmYmJ6bXh2bXhsc2ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNDkzNDYsImV4cCI6MjA5OTYyNTM0Nn0.5enZLSKSQKObC45d7NhkqbP35aR63wVNIgrigCi66w8
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/")
+          echo "REST status: ${code}"
+          if [ "${code}" -ge 500 ]; then
+            echo "::warning::Supabase membalas ${code} — proyek mungkin sedang pause."
+          fi
+
+      - name: Cek Realtime hidup
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://rilnglxfbbzmxvmxlsjm.supabase.co/realtime/v1/websocket")
+          echo "Realtime handshake status: ${code}"

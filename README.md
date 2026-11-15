@@ -39,6 +39,19 @@ setelah peta sebelumnya ditamatkan; kemajuan disimpan di HP (offline).
 Tiap peta punya jumlah gelombang, HP & kecepatan lawan, jumlah teman satu
 geng, serta bos `pentolan` di gelombang terakhir yang berbeda-beda.
 
+### 🎮 Mabar Online (duel 1 lawan 1)
+
+Di layar judul ketuk tombol hijau **Mabar**:
+
+1. Satu pemain jadi **tuan rumah** → dapat **kode 4 huruf** (contoh `AB3D`) → kirim ke teman lewat chat.
+2. Teman buka Tawuran → **Mabar** → ketik kode → **Gabung**.
+3. Duel langsung mulai di map pilihan tuan rumah. Nyawa lawan tampil di bar kuning bagian atas, skor kita di kanan.
+
+Butuh internet **hanya saat mabar**; mode gelombang tetap jalan 100% offline.
+Server mabar memakai Supabase Realtime (gratis). Workflow
+`supabase-keepalive.yml` menembak proyeknya sekali sehari supaya tidak
+di-pause otomatis karena tidak ada aktivitas.
+
 APK dibuat otomatis oleh GitHub Actions setiap ada perubahan di `apps/tawuran/`
 (lihat `.github/workflows/build-apk.yml`) dan dipublikasikan ke rilis
 [`apk-terbaru`](../../releases/tag/apk-terbaru).

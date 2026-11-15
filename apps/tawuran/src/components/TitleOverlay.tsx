@@ -1,5 +1,5 @@
 import React from 'react';
-import { SlidersHorizontal, Sun, Moon, Play, Volume2, VolumeX, Maximize2 } from 'lucide-react';
+import { SlidersHorizontal, Sun, Moon, Play, Volume2, VolumeX, Maximize2, Users } from 'lucide-react';
 import { TitleEmblemSvg } from './SvgIcons';
 import { WEAPON_SPECS, THROWABLE_SPECS } from '../game/rules';
 import type { CharacterConfig, ThemeMode } from '../game/types';
@@ -22,6 +22,7 @@ interface TitleOverlayProps {
   unlockedLevel?: number;
   onSelectLevel?: (id: number) => void;
   onStart: () => void;
+  onOpenMabar: () => void;
   onOpenCustomizer: () => void;
   onToggleTheme: () => void;
   onToggleMute: () => void;
@@ -38,6 +39,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
   unlockedLevel = 1,
   onSelectLevel,
   onStart,
+  onOpenMabar,
   onOpenCustomizer,
   onToggleTheme,
   onToggleMute,
@@ -212,6 +214,19 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
             >
               <Play className="w-5 h-5 fill-current" />
               <span>Mulai Tawuran</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onOpenMabar();
+              }}
+              aria-label="Mabar Online"
+              className="min-h-[44px] sm:min-h-[48px] [@media(max-height:560px)]:min-h-[40px] px-3 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-1.5 border transition-colors cursor-pointer bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white"
+            >
+              <Users className="w-4 h-4" />
+              <span className="whitespace-nowrap">Mabar</span>
             </button>
 
             <button

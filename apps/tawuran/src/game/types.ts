@@ -111,6 +111,14 @@ export interface HudSnapshot {
   parryFlashTimer: number;
   waveBannerText: string;
 
+  /** Info lawan saat Mabar Online; null berarti mode offline/gelombang. */
+  net: {
+    role: 'host' | 'guest';
+    peerName: string;
+    peerHp: number;
+    peerMaxHp: number;
+  } | null;
+
   /** Level/map yang sedang dimainkan (1–10). */
   level: number;
   mapName: string;

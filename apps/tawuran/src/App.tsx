@@ -15,6 +15,9 @@ import { CustomizerDrawer } from './components/CustomizerDrawer';
 import { GameHud } from './components/GameHud';
 import { GameModal } from './components/GameModal';
 import { RotatePrompt } from './components/RotatePrompt';
+import { MabarModal, type MabarUiStatus } from './components/MabarModal';
+import { MabarSession, type MabarRole } from './net/mabar';
+import { makeRoomCode, type MabarProfile } from './net/mabar-protocol';
 
 const CHAR_STORAGE_KEY = 'tawuran_char_config_v1';
 
@@ -51,11 +54,20 @@ const INITIAL_HUD: HudSnapshot = {
   isBlocking: false,
   parryFlashTimer: 0,
   waveBannerText: '',
+  net: null,
   level: 1,
   mapName: LEVELS[0].nama,
   maxLevel: MAX_LEVEL,
   unlockedLevel: 1,
 };
+
+function hueFromName(name: string): number {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) % 360;
+  }
+  return hash;
+}
 
 function loadSavedCharacter(): CharacterConfig {
   try {
@@ -84,6 +96,17 @@ export default function App() {
   const [portraitDismissed, setPortraitDismissed] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState(1);
   const [unlockedLevel, setUnlockedLevel] = useState(loadUnlockedLevel);
+
+  // --- Mabar Online (duel 1v1) ---
+  const mabarSessionRef = useRef<MabarSession | null>(null);
+  const mabarPeerRef = useRef<MabarProfile | null>(null);
+  const mabarStartedRef = useRef(false);
+  const [mabarOpen, setMabarOpen] = useState(false);
+  const [mabarStatus, setMabarStatus] = useState<MabarUiStatus>('idle');
+  const [mabarRole, setMabarRole] = useState<MabarRole | null>(null);
+  const [mabarCode, setMabarCode] = useState('');
+  const [mabarDetail, setMabarDetail] = useState('');
+  const [mabarPeerName, setMabarPeerName] = useState('');
   useEffect(() => {
     if (hud.unlockedLevel > unlockedLevel) setUnlockedLevel(hud.unlockedLevel);
   }, [hud.unlockedLevel, unlockedLevel]);
@@ -130,6 +153,8 @@ export default function App() {
     setUnlockedLevel(engine.getUnlockedLevel());
 
     return () => {
+      mabarSessionRef.current?.close();
+      mabarSessionRef.current = null;
       engine.dispose();
       engineRef.current = null;
     };
@@ -160,18 +185,133 @@ export default function App() {
     setUnlockedLevel(engineRef.current?.getUnlockedLevel() ?? unlockedLevel);
   }, [unlockedLevel]);
 
+  const closeMabarSession = useCallback(() => {
+    mabarStartedRef.current = false;
+    mabarSessionRef.current?.close();
+    mabarSessionRef.current = null;
+    mabarPeerRef.current = null;
+    if (engineRef.current) engineRef.current.onNetSend = null;
+  }, []);
+
+  const resetMabarUi = useCallback(() => {
+    setMabarOpen(false);
+    setMabarStatus('idle');
+    setMabarRole(null);
+    setMabarCode('');
+    setMabarDetail('');
+    setMabarPeerName('');
+  }, []);
+
+  const openMabar = useCallback(() => {
+    closeMabarSession();
+    resetMabarUi();
+    setMabarOpen(true);
+  }, [closeMabarSession, resetMabarUi]);
+
+  const buildMabarProfile = useCallback(
+    (level: number): MabarProfile => ({
+      name: charConfig.name.slice(0, 18) || 'Pemain',
+      level,
+      weapon: charConfig.primaryWeapon,
+      girLength: clampGirLength(charConfig.girLengthMeters),
+      hue: hueFromName(charConfig.name),
+    }),
+    [charConfig],
+  );
+
+  const startMabarSession = useCallback(
+    (role: MabarRole, code: string) => {
+      closeMabarSession();
+      mabarStartedRef.current = false;
+      mabarPeerRef.current = null;
+      setMabarRole(role);
+      setMabarCode(code);
+      setMabarDetail('');
+      setMabarPeerName('');
+      setMabarStatus('connecting');
+
+      const session = new MabarSession({
+        code,
+        role,
+        profile: buildMabarProfile(selectedLevel),
+        onStatus: (st, detail) => {
+          setMabarStatus(st);
+          if (detail) setMabarDetail(detail);
+          if (st === 'peer-left') {
+            mabarStartedRef.current = false;
+            if (engineRef.current) engineRef.current.onNetSend = null;
+            engineRef.current?.leaveDuel();
+            setMabarOpen(true);
+          }
+        },
+        onPeerProfile: (profile) => {
+          mabarPeerRef.current = profile;
+          setMabarPeerName(profile.name);
+        },
+        onMessage: (msg) => engineRef.current?.handleNetMessage(msg),
+      });
+      mabarSessionRef.current = session;
+      void session.start();
+    },
+    [buildMabarProfile, closeMabarSession, selectedLevel],
+  );
+
+  const handleMabarHost = useCallback(() => {
+    startMabarSession('host', makeRoomCode());
+  }, [startMabarSession]);
+
+  const handleMabarJoin = useCallback(
+    (code: string) => {
+      startMabarSession('guest', code);
+    },
+    [startMabarSession],
+  );
+
+  const handleMabarCancel = useCallback(() => {
+    closeMabarSession();
+    resetMabarUi();
+    engineRef.current?.leaveDuel();
+  }, [closeMabarSession, resetMabarUi]);
+
+  // Begitu kedua pemain tersambung, langsung mulai duel.
+  useEffect(() => {
+    if (mabarStatus !== 'ready') return;
+    const session = mabarSessionRef.current;
+    const engine = engineRef.current;
+    if (!session || !engine || mabarStartedRef.current) return;
+
+    const role = mabarRole ?? 'guest';
+    const peer = mabarPeerRef.current;
+    mabarStartedRef.current = true;
+    engine.onNetSend = (msg) => session.send(msg);
+    setMabarOpen(false);
+    engine.startDuel({
+      role,
+      peerName: peer?.name ?? 'Lawan',
+      peerProfile: peer ?? undefined,
+      levelId: role === 'host' ? selectedLevel : (peer?.level ?? selectedLevel),
+    });
+    if (window.matchMedia?.('(pointer: coarse)').matches) {
+      void handleActivateLandscape();
+    }
+  }, [mabarStatus, mabarRole, selectedLevel, handleActivateLandscape]);
+
   const handleStartWithIntro = useCallback(() => {
+    closeMabarSession();
+    resetMabarUi();
     setCustomizerOpen(false);
     if (window.matchMedia?.('(pointer: coarse)').matches) {
       void handleActivateLandscape();
     }
     engineRef.current?.startIntro();
-  }, [handleActivateLandscape]);
+  }, [handleActivateLandscape, closeMabarSession, resetMabarUi]);
 
   const handleRestartDirect = useCallback(() => {
+    closeMabarSession();
+    resetMabarUi();
     setCustomizerOpen(false);
     engineRef.current?.startGame();
-  }, []);
+  }, [closeMabarSession, resetMabarUi]);
 
   const handleConfigChange = useCallback((next: CharacterConfig) => {
     setCharConfig(next);
@@ -256,6 +396,7 @@ export default function App() {
           theme={theme}
           muted={muted}
           onStart={handleStartWithIntro}
+          onOpenMabar={openMabar}
           onOpenCustomizer={() => setCustomizerOpen(true)}
           onToggleTheme={handleToggleTheme}
           onToggleMute={handleToggleMute}
@@ -306,6 +447,21 @@ export default function App() {
         />
       )}
 
+      {mabarOpen && (
+        <MabarModal
+          theme={theme}
+          status={mabarStatus}
+          role={mabarRole}
+          code={mabarCode}
+          detail={mabarDetail}
+          peerName={mabarPeerName}
+          levelName={LEVELS[Math.min(LEVELS.length, Math.max(1, selectedLevel)) - 1]?.nama ?? ''}
+          onHost={handleMabarHost}
+          onJoin={handleMabarJoin}
+          onCancel={handleMabarCancel}
+        />
+      )}
+
       <GameModal
         hud={hud}
         theme={theme}
@@ -316,6 +472,8 @@ export default function App() {
           setCustomizerOpen(true);
         }}
         onReturnTitle={() => {
+          closeMabarSession();
+          resetMabarUi();
           setCustomizerOpen(false);
           engineRef.current?.returnToTitle();
         }}

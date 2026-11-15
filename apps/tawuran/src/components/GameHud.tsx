@@ -45,6 +45,9 @@ export const GameHud: React.FC<GameHudProps> = ({
   const ghostPct = Math.max(0, Math.min(100, (hud.ghostHp / hud.maxHp) * 100));
   const stamPct = Math.max(0, Math.min(100, (hud.stamina / hud.maxStamina) * 100));
   const lowHp = hpPct <= 28;
+  const peerPct = hud.net
+    ? Math.max(0, Math.min(100, (hud.net.peerHp / Math.max(1, hud.net.peerMaxHp)) * 100))
+    : 0;
 
   const surfaceClass = isDark
     ? 'bg-zinc-950/90 border-zinc-800 text-zinc-100'
@@ -64,6 +67,30 @@ export const GameHud: React.FC<GameHudProps> = ({
 
       {/* TOP PERIMETER CLUSTERS */}
       <div className="flex items-start justify-between gap-2">
+        {/* Mabar Online: nyawa lawan */}
+        {hud.net && (
+          <div
+            className={`absolute left-1/2 -translate-x-1/2 top-2.5 sm:top-5 px-2.5 py-1.5 rounded-xl border shadow-lg w-40 sm:w-64 ${surfaceClass}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-amber-500">
+                Mabar
+              </span>
+              <span className="font-display font-bold text-xs sm:text-sm truncate max-w-[92px] sm:max-w-[150px]">
+                {hud.net.peerName}
+              </span>
+              <span className="font-mono-num text-[10px] sm:text-xs font-bold text-amber-500 shrink-0">
+                {hud.net.peerHp}
+              </span>
+            </div>
+            <div className="mt-1 h-2 rounded bg-zinc-800 overflow-hidden">
+              <div
+                className="h-full bg-amber-500 transition-all duration-150"
+                style={{ width: `${peerPct}%` }}
+              />
+            </div>
+          </div>
+        )}
         {/* Top-Left: Vitality, Ghost Damage & Stamina */}
         <div
           className={`w-40 sm:w-68 [@media(max-height:520px)]:w-52 p-2.5 sm:p-3 [@media(max-height:520px)]:p-2 rounded-xl border shadow-lg ${surfaceClass}`}
@@ -124,27 +151,41 @@ export const GameHud: React.FC<GameHudProps> = ({
                   {hud.mapName}
                 </div>
               </div>
-              <div className="w-px h-5 sm:h-6 bg-zinc-700/50" />
-              <div>
-                <div className="text-[9px] sm:text-[10px] font-semibold opacity-70">GELOMBANG</div>
-                <div className="font-mono-num font-bold text-xs sm:text-base [@media(max-height:520px)]:text-sm">
-                  {hud.wave}/{hud.maxWaves}
-                </div>
-              </div>
-              <div className="w-px h-5 sm:h-6 bg-zinc-700/50" />
-              <div>
-                <div className="text-[9px] sm:text-[10px] font-semibold opacity-70">REKAN</div>
-                <div className="font-mono-num font-bold text-xs sm:text-base [@media(max-height:520px)]:text-sm text-emerald-400">
-                  {hud.alliesAlive}/{hud.alliesTotal}
-                </div>
-              </div>
-              <div className="w-px h-5 sm:h-6 bg-zinc-700/50" />
-              <div>
-                <div className="text-[9px] sm:text-[10px] font-semibold opacity-70">LAWAN</div>
-                <div className="font-mono-num font-bold text-xs sm:text-base [@media(max-height:520px)]:text-sm text-amber-500">
-                  {hud.enemiesAlive}
-                </div>
-              </div>
+              {hud.net ? (
+                <>
+                  <div className="w-px h-5 sm:h-6 bg-zinc-700/50" />
+                  <div>
+                    <div className="text-[9px] sm:text-[10px] font-semibold opacity-70">MODE</div>
+                    <div className="font-display font-bold text-xs sm:text-base [@media(max-height:520px)]:text-sm text-emerald-400 uppercase">
+                      Mabar
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-px h-5 sm:h-6 bg-zinc-700/50" />
+                  <div>
+                    <div className="text-[9px] sm:text-[10px] font-semibold opacity-70">GELOMBANG</div>
+                    <div className="font-mono-num font-bold text-xs sm:text-base [@media(max-height:520px)]:text-sm">
+                      {hud.wave}/{hud.maxWaves}
+                    </div>
+                  </div>
+                  <div className="w-px h-5 sm:h-6 bg-zinc-700/50" />
+                  <div>
+                    <div className="text-[9px] sm:text-[10px] font-semibold opacity-70">REKAN</div>
+                    <div className="font-mono-num font-bold text-xs sm:text-base [@media(max-height:520px)]:text-sm text-emerald-400">
+                      {hud.alliesAlive}/{hud.alliesTotal}
+                    </div>
+                  </div>
+                  <div className="w-px h-5 sm:h-6 bg-zinc-700/50" />
+                  <div>
+                    <div className="text-[9px] sm:text-[10px] font-semibold opacity-70">LAWAN</div>
+                    <div className="font-mono-num font-bold text-xs sm:text-base [@media(max-height:520px)]:text-sm text-amber-500">
+                      {hud.enemiesAlive}
+                    </div>
+                  </div>
+                </>
+              )}
               <div className="w-px h-5 sm:h-6 bg-zinc-700/50" />
               <div>
                 <div className="text-[9px] sm:text-[10px] font-semibold opacity-70">SKOR</div>

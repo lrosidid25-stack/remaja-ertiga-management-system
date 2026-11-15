@@ -28,6 +28,14 @@ import {
   normalizeAngleDiff,
   resolveActorPosition,
 } from './rules';
+import {
+  MABAR_STATE_INTERVAL,
+  isPlausiblePosition,
+  jacketColorForHue,
+  lerpAngle,
+  type MabarMessage,
+  type MabarProfile,
+} from '../net/mabar-protocol';
 import type {
   CharacterConfig,
   EnemyArchetype,
@@ -300,6 +308,35 @@ export class BrawlEngine {
 
   // Environment disposables
   private envDisposables: Array<{ dispose: () => void }> = [];
+
+  // --- MABAR ONLINE (duel 1 lawan 1) ---
+  private netMode = false;
+  private netRole: 'host' | 'guest' = 'host';
+  private netPeerName = '';
+  private remoteRig: FighterRig | null = null;
+  private remoteGirVisual: FlexibleGirVisual | null = null;
+  private remoteWeapon: WeaponId = 'sabit_modif';
+  private remoteGirLength = 3.5;
+  private remoteX = 0;
+  private remoteZ = -3;
+  private remoteYaw = 0;
+  private remoteTargetX = 0;
+  private remoteTargetZ = -3;
+  private remoteTargetYaw = 0;
+  private remoteSpeed = 0;
+  private remoteWalkPhase = 0;
+  private remoteMaxHp = 100;
+  private remoteHp = 100;
+  private remoteAttackPhase: 'idle' | 'windup' | 'active' | 'recovery' = 'idle';
+  private remoteAttackTimer = 0;
+  private remoteBlocking = false;
+  private remoteHitFlash = 0;
+  private lastRemoteStateAt = 0;
+  private netSendTimer = 0;
+  private netKoAnnounced = false;
+  private netSelfKoAnnounced = false;
+  /** Pengirim pesan ke lawan; di-set oleh App saat sesi mabar aktif. */
+  public onNetSend: ((msg: MabarMessage) => void) | null = null;
 
   constructor(
     container: HTMLElement,
@@ -718,6 +755,44 @@ export class BrawlEngine {
   }
 
   public startGame(): void {
+    this.beginMatchState(false, 8);
+    this.spawnAllies();
+    this.spawnWave(1);
+    this.emitHud();
+  }
+
+  /** Mulai duel online 1v1 (tanpa gelombang musuh, tanpa teman geng). */
+  public startDuel(opts: {
+    role: 'host' | 'guest';
+    peerName: string;
+    peerProfile?: MabarProfile;
+    levelId?: number;
+  }): void {
+    if (typeof opts.levelId === 'number') {
+      this.levelId = clampLevelId(opts.levelId);
+      this.level = getLevel(this.levelId);
+      this.maxWaves = this.level.waveCount;
+      this.buildEnvironmentForLevel();
+    }
+    this.netRole = opts.role;
+    this.netPeerName = (opts.peerName || 'Lawan').slice(0, 18);
+    this.beginMatchState(true, 7);
+    this.setupRemoteFighter(opts.peerProfile);
+    this.wave = 1;
+    this.maxWaves = 1;
+    this.waveBannerText = `MABAR ONLINE · ${this.netPeerName.toUpperCase()}`;
+    this.waveBannerTimer = 3.2;
+    this.sound.playWaveCue(false);
+    this.emitHud();
+  }
+
+  private beginMatchState(net: boolean, spawnZ: number): void {
+    if (this.netMode !== net) this.clearRemoteFighter();
+    this.netMode = net;
+    this.netKoAnnounced = false;
+    this.netSelfKoAnnounced = false;
+    this.netSendTimer = 0;
+
     this.sound.unlock();
     this.keysHeld.clear();
     this.touchMoveX = 0;
@@ -730,7 +805,7 @@ export class BrawlEngine {
     this.clearIntroActors();
 
     this.playerX = 0;
-    this.playerZ = 8;
+    this.playerZ = spawnZ;
     this.playerVx = 0;
     this.playerVz = 0;
     this.playerYaw = Math.PI; // Looking up the avenue (-Z) toward incoming wave
@@ -781,9 +856,6 @@ export class BrawlEngine {
     this.cameraTrauma = 0;
 
     this.setBodyState('playing');
-    this.spawnAllies();
-    this.spawnWave(1);
-    this.emitHud();
   }
 
   public pauseGame(): void {
@@ -807,6 +879,10 @@ export class BrawlEngine {
     this.clearAllies();
     this.clearPetasans();
     this.clearIntroActors();
+    this.netMode = false;
+    this.netKoAnnounced = false;
+    this.netSelfKoAnnounced = false;
+    this.clearRemoteFighter();
     this.playerX = 0;
     this.playerZ = 6;
     this.playerYaw = 0.2;
@@ -860,6 +936,10 @@ export class BrawlEngine {
 
   public triggerThrowPetasan(): void {
     if (this.gameState !== 'playing') return;
+    if (this.netMode) {
+      this.setFeedback('PETASAN DIMATIKAN DI MABAR');
+      return;
+    }
     this.sound.unlock();
     if (
       this.ammoPetasan <= 0 ||
@@ -1339,6 +1419,20 @@ export class BrawlEngine {
     // --- ACTIVE GAMEPLAY SIMULATION ---
     this.updateHitFlashes(dt);
     this.updatePlayer(dt);
+
+    // MABAR ONLINE: hanya pemain lokal + lawan dari jaringan, tanpa gelombang.
+    if (this.netMode) {
+      this.updateRemoteFighter(dt);
+      this.updatePetasans(dt);
+      this.updateCamera(dt);
+      this.hudSyncTimer += dt;
+      if (this.hudSyncTimer >= 0.08) {
+        this.hudSyncTimer = 0;
+        this.emitHud();
+      }
+      return;
+    }
+
     this.updateAllies(dt);
     this.updateEnemies(dt);
     this.updatePetasans(dt);
@@ -1816,6 +1910,7 @@ export class BrawlEngine {
         this.attackTimer = spec.activeSec;
         this.playerScaleX = 1.12;
         this.playerScaleY = 0.9;
+        if (this.netMode) this.sendNetAttack();
       } else if (this.attackPhase === 'active') {
         this.evaluatePlayerMeleeHits(spec);
         if (this.attackTimer <= 0) {
@@ -2564,6 +2659,10 @@ export class BrawlEngine {
       this.gameOverDelayTimer = 0.65;
       this.sound.playDefeat();
     }
+    if (this.netMode && this.playerHp <= 0 && !this.netSelfKoAnnounced) {
+      this.netSelfKoAnnounced = true;
+      this.onNetSend?.({ t: 'ko' });
+    }
     this.emitHud();
   }
 
@@ -3139,19 +3238,36 @@ export class BrawlEngine {
 
   private updateCamera(dt: number): void {
     const dampK = 1 - Math.exp(-7.5 * dt);
-    const lenExtra =
-      this.activeWeapon === 'gir_sabuk'
-        ? ((clampGirLength(this.charConfig.girLengthMeters) - 2) / 4) * 1.8
-        : 0;
-    const desiredX = THREE.MathUtils.clamp(this.playerX * 0.7, -5.5, 5.5);
-    const desiredY = 4.9 + lenExtra * 0.5;
-    const desiredZ = Math.min(ARENA_BOUNDS.maxZ + 7.5, this.playerZ + 8.2 + lenExtra);
 
-    _v1.set(desiredX, desiredY, desiredZ);
-    _v2.set(this.playerX * 0.8, 1.15, this.playerZ - 2.2);
+    if (this.netMode && this.remoteRig) {
+      // Kamera duel: bingkai kedua petarung, mundur kalau mereka berjauhan.
+      const midX = (this.playerX + this.remoteX) * 0.5;
+      const midZ = (this.playerZ + this.remoteZ) * 0.5;
+      const sep = Math.hypot(this.playerX - this.remoteX, this.playerZ - this.remoteZ);
+      const back = Math.min(15, 7.6 + sep * 0.62);
+      _v1.set(
+        THREE.MathUtils.clamp(midX * 0.75, -6.5, 6.5),
+        4.3 + sep * 0.1,
+        Math.min(ARENA_BOUNDS.maxZ + 8.5, midZ + back),
+      );
+      _v2.set(midX * 0.85, 1.15, midZ - 0.8);
+      this.camPos.lerp(_v1, dampK * 0.85);
+      this.camLook.lerp(_v2, dampK);
+    } else {
+      const lenExtra =
+        this.activeWeapon === 'gir_sabuk'
+          ? ((clampGirLength(this.charConfig.girLengthMeters) - 2) / 4) * 1.8
+          : 0;
+      const desiredX = THREE.MathUtils.clamp(this.playerX * 0.7, -5.5, 5.5);
+      const desiredY = 4.9 + lenExtra * 0.5;
+      const desiredZ = Math.min(ARENA_BOUNDS.maxZ + 7.5, this.playerZ + 8.2 + lenExtra);
 
-    this.camPos.lerp(_v1, dampK);
-    this.camLook.lerp(_v2, dampK);
+      _v1.set(desiredX, desiredY, desiredZ);
+      _v2.set(this.playerX * 0.8, 1.15, this.playerZ - 2.2);
+
+      this.camPos.lerp(_v1, dampK);
+      this.camLook.lerp(_v2, dampK);
+    }
 
     // Trauma^2 camera shake
     const shake = this.cameraTrauma * this.cameraTrauma;
@@ -3168,11 +3284,11 @@ export class BrawlEngine {
 
   private finishRun(victory: boolean): void {
     this.isVictory = victory;
-    if (victory) {
+    if (victory && !this.netMode) {
       // Selesaikan map ini → buka level berikutnya (disimpan di HP).
       this.unlockedLevel = Math.max(this.unlockedLevel, unlockNextLevel(this.level.id));
     }
-    if (this.score > this.bestScore) {
+    if (!this.netMode && this.score > this.bestScore) {
       this.bestScore = this.score;
       try {
         localStorage.setItem(BEST_SCORE_STORAGE_KEY, String(this.bestScore));
@@ -3219,6 +3335,14 @@ export class BrawlEngine {
       isBlocking: this.isBlocking,
       parryFlashTimer: this.parryWindowTimer,
       waveBannerText: this.waveBannerTimer > 0 ? this.waveBannerText : '',
+      net: this.netMode
+        ? {
+            role: this.netRole,
+            peerName: this.netPeerName,
+            peerHp: Math.round(this.remoteHp),
+            peerMaxHp: this.remoteMaxHp,
+          }
+        : null,
       level: this.level.id,
       mapName: this.level.nama,
       maxLevel: MAX_LEVEL,
@@ -3459,6 +3583,278 @@ export class BrawlEngine {
       }
     }
     this.emitHud();
+  }
+
+  // ============================================================
+  // MABAR ONLINE (duel 1v1)
+  // ============================================================
+
+  private setupRemoteFighter(profile?: MabarProfile): void {
+    this.clearRemoteFighter();
+    this.remoteWeapon = profile?.weapon ?? this.activeWeapon;
+    this.remoteGirLength = clampGirLength(profile?.girLength ?? this.charConfig.girLengthMeters);
+    const remoteConfig: CharacterConfig = {
+      ...this.charConfig,
+      name: this.netPeerName || 'Lawan',
+      primaryWeapon: this.remoteWeapon,
+      girLengthMeters: this.remoteGirLength,
+      jacketColor: profile ? jacketColorForHue(profile.hue) : '#3f3f46',
+    };
+    const rig = buildFighterRig(remoteConfig, false);
+    rig.root.position.set(0, 0, -3);
+    rig.root.rotation.set(0, 0, 0);
+    this.scene.add(rig.root);
+    if (rig.hpBarGroup) rig.hpBarGroup.visible = false;
+    rig.telegraphRing.visible = false;
+    this.remoteRig = rig;
+
+    this.remoteX = 0;
+    this.remoteZ = -3;
+    this.remoteTargetX = 0;
+    this.remoteTargetZ = -3;
+    this.remoteYaw = 0;
+    this.remoteTargetYaw = 0;
+    this.remoteSpeed = 0;
+    this.remoteWalkPhase = 0;
+    this.remoteMaxHp = this.playerMaxHp;
+    this.remoteHp = this.remoteMaxHp;
+    this.remoteAttackPhase = 'idle';
+    this.remoteAttackTimer = 0;
+    this.remoteBlocking = false;
+    this.remoteHitFlash = 0;
+    this.lastRemoteStateAt = 0;
+    this.animateIdlePose(rig, 0);
+
+    // Sabuk gir lawan tetap terlihat panjang & lentur seperti aslinya.
+    if (this.remoteWeapon === 'gir_sabuk' && rig.girAnchor) {
+      this.remoteGirVisual = new FlexibleGirVisual(this.scene);
+      rig.girAnchor.getWorldPosition(_v3);
+      this.remoteGirVisual.snapToAnchor(_v3, this.remoteYaw, this.remoteGirLength, true);
+    }
+  }
+
+  private clearRemoteFighter(): void {
+    this.remoteGirVisual?.dispose(this.scene);
+    this.remoteGirVisual = null;
+    const rig = this.remoteRig;
+    if (!rig) return;
+    this.scene.remove(rig.root);
+    this.remoteRig = null;
+  }
+
+  private updateRemoteFighter(dt: number): void {
+    const rig = this.remoteRig;
+    if (!rig) return;
+
+    const k = 1 - Math.exp(-16 * dt);
+    this.remoteX = THREE.MathUtils.lerp(this.remoteX, this.remoteTargetX, k);
+    this.remoteZ = THREE.MathUtils.lerp(this.remoteZ, this.remoteTargetZ, k);
+    this.remoteYaw = lerpAngle(this.remoteYaw, this.remoteTargetYaw, k);
+    this.remoteWalkPhase += this.remoteSpeed * dt * 2.4;
+
+    const spec = getEffectiveWeaponSpec(this.remoteWeapon, this.remoteGirLength);
+    if (this.remoteAttackPhase !== 'idle') {
+      this.remoteAttackTimer -= dt;
+      if (this.remoteAttackTimer <= 0) {
+        if (this.remoteAttackPhase === 'windup') {
+          this.remoteAttackPhase = 'active';
+          this.remoteAttackTimer = spec.activeSec;
+          this.sound.playSwing(this.remoteWeapon, this.remoteGirLength);
+        } else if (this.remoteAttackPhase === 'active') {
+          this.remoteAttackPhase = 'recovery';
+          this.remoteAttackTimer = spec.recoverySec;
+        } else {
+          this.remoteAttackPhase = 'idle';
+          this.remoteAttackTimer = 0;
+        }
+      }
+    }
+
+    rig.root.position.set(this.remoteX, 0, this.remoteZ);
+    rig.root.rotation.set(0, this.remoteYaw, 0);
+    rig.root.scale.set(1, 1, 1);
+
+    this.animateFighterPose(
+      rig,
+      this.remoteWalkPhase,
+      this.remoteSpeed,
+      this.remoteAttackPhase,
+      Math.max(0, this.remoteAttackTimer),
+      spec.activeSec,
+      spec.windupSec,
+      spec.recoverySec,
+      this.remoteWeapon,
+      this.remoteBlocking,
+      false,
+      false,
+      0,
+    );
+
+    if (this.remoteGirVisual && rig.girAnchor) {
+      rig.root.updateMatrixWorld(true);
+      rig.girAnchor.getWorldPosition(_v3);
+      this.remoteGirVisual.update({
+        dt,
+        anchorPos: _v3,
+        fighterX: this.remoteX,
+        fighterZ: this.remoteZ,
+        fighterYaw: this.remoteYaw,
+        lengthMeters: this.remoteGirLength,
+        attackPhase: this.remoteAttackPhase,
+        attackTimer: Math.max(0, this.remoteAttackTimer),
+        windupSec: spec.windupSec,
+        activeSec: spec.activeSec,
+        recoverySec: spec.recoverySec,
+        isTitlePreview: false,
+        simTime: this.simTime,
+      });
+    }
+
+    if (this.remoteHitFlash > 0) {
+      this.remoteHitFlash = Math.max(0, this.remoteHitFlash - dt);
+      const t = this.remoteHitFlash / 0.16;
+      for (const m of rig.hitFlashMaterials) {
+        m.emissive.setRGB(0.95 * t, 0.22 * t, 0.1 * t);
+        m.emissiveIntensity = t;
+      }
+    }
+
+    this.netSendTimer += dt;
+    if (this.netSendTimer >= MABAR_STATE_INTERVAL) {
+      this.netSendTimer = 0;
+      this.onNetSend?.({
+        t: 's',
+        x: Math.round(this.playerX * 100) / 100,
+        z: Math.round(this.playerZ * 100) / 100,
+        y: Math.round(this.playerYaw * 1000) / 1000,
+        hp: Math.round(this.playerHp),
+        b: this.isBlocking ? 1 : 0,
+        ph: this.attackPhase,
+        sp: Math.round(Math.hypot(this.playerVx, this.playerVz) * 10) / 10,
+      });
+    }
+  }
+
+  private sendNetAttack(): void {
+    if (!this.netMode) return;
+    this.onNetSend?.({
+      t: 'a',
+      w: this.activeWeapon,
+      g: this.charConfig.girLengthMeters,
+      x: Math.round(this.playerX * 100) / 100,
+      z: Math.round(this.playerZ * 100) / 100,
+      y: Math.round(this.playerYaw * 1000) / 1000,
+    });
+  }
+
+  /** Pesan masuk dari lawan (dipanggil App saat sesi mabar aktif). */
+  public handleNetMessage(msg: MabarMessage): void {
+    if (!this.netMode) return;
+    if (msg.t === 's') {
+      this.applyRemoteState(msg);
+    } else if (msg.t === 'a') {
+      this.receiveRemoteAttack(msg);
+    } else if (msg.t === 'h') {
+      this.applyRemoteHitFeedback(msg.d, msg.b === 1);
+    } else if (msg.t === 'ko') {
+      if (this.netKoAnnounced) return;
+      this.netKoAnnounced = true;
+      this.remoteHp = 0;
+      this.setFeedback('LAWAN TUMBANG!');
+      this.spawnBurstParticles(this.remoteX, 1.0, this.remoteZ, 22, 0xf97316, 7, 1.3, 10);
+      this.finishRun(true);
+    }
+  }
+
+  private applyRemoteState(msg: Extract<MabarMessage, { t: 's' }>): void {
+    const now = performance.now();
+    const dt =
+      this.lastRemoteStateAt > 0
+        ? Math.max(0.03, (now - this.lastRemoteStateAt) / 1000)
+        : 0.1;
+    this.lastRemoteStateAt = now;
+
+    if (
+      !isPlausiblePosition(
+        { x: this.remoteTargetX, z: this.remoteTargetZ },
+        { x: msg.x, z: msg.z },
+        dt,
+      )
+    ) {
+      return;
+    }
+
+    const moved = Math.hypot(msg.x - this.remoteTargetX, msg.z - this.remoteTargetZ);
+    this.remoteSpeed = THREE.MathUtils.damp(this.remoteSpeed, Math.min(9, moved / dt), 9, dt);
+    this.remoteTargetX = msg.x;
+    this.remoteTargetZ = msg.z;
+    this.remoteTargetYaw = msg.y;
+    this.remoteBlocking = msg.b === 1;
+
+    if (msg.ph !== this.remoteAttackPhase) {
+      const spec = getEffectiveWeaponSpec(this.remoteWeapon, this.remoteGirLength);
+      this.remoteAttackPhase = msg.ph;
+      this.remoteAttackTimer =
+        msg.ph === 'windup'
+          ? spec.windupSec
+          : msg.ph === 'active'
+            ? spec.activeSec
+            : msg.ph === 'recovery'
+              ? spec.recoverySec
+              : 0;
+    }
+
+    if (msg.hp < this.remoteHp) this.remoteHitFlash = 0.16;
+    this.remoteHp = msg.hp;
+  }
+
+  private receiveRemoteAttack(msg: Extract<MabarMessage, { t: 'a' }>): void {
+    if (this.gameState !== 'playing') return;
+    const spec = getEffectiveWeaponSpec(msg.w, msg.g);
+    const res = computeMeleeHit({
+      attackerX: msg.x,
+      attackerZ: msg.z,
+      attackerYaw: msg.y,
+      targetX: this.playerX,
+      targetZ: this.playerZ,
+      weapon: spec,
+      targetBlocking: this.isBlocking,
+      targetParryTimer: this.parryWindowTimer,
+      comboCount: 0,
+    });
+    if (!res.hit) return;
+    this.applyDamageToPlayer(res.damage, res.knockbackX, res.knockbackZ, res.blocked);
+    this.onNetSend?.({ t: 'h', d: res.damage, b: res.blocked ? 1 : 0 });
+  }
+
+  private applyRemoteHitFeedback(dmg: number, blocked: boolean): void {
+    if (!this.netMode) return;
+    this.combo += 1;
+    this.comboTimer = 2.6;
+    this.maxCombo = Math.max(this.maxCombo, this.combo);
+    this.score += dmg * 10 + this.combo * 15;
+    this.remoteHitFlash = 0.16;
+    if (blocked) {
+      this.sound.playBlock(false);
+      this.spawnBurstParticles(this.remoteX, 1.2, this.remoteZ, 8, 0x94a3b8, 4.5, 0.8, 10);
+      this.setFeedback('DIBLOK');
+    } else {
+      this.sound.playHit(true);
+      this.hitstopTimer = Math.max(this.hitstopTimer, 0.05);
+      this.cameraTrauma = Math.min(1, this.cameraTrauma + 0.34);
+      this.spawnBurstParticles(this.remoteX, 1.2, this.remoteZ, 14, 0xfbbf24, 6.5, 1.0, 14);
+      this.setFeedback(`KENA -${dmg}`);
+    }
+    this.emitHud();
+  }
+
+  /** Keluar dari duel (teman putus / pemain keluar): bersihkan lawan. */
+  public leaveDuel(): void {
+    this.netMode = false;
+    this.netKoAnnounced = false;
+    this.netSelfKoAnnounced = false;
+    this.clearRemoteFighter();
+    this.returnToTitle();
   }
 
   public dispose(): void {
