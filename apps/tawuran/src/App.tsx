@@ -16,7 +16,7 @@ import { GameHud } from './components/GameHud';
 import { GameModal } from './components/GameModal';
 import { RotatePrompt } from './components/RotatePrompt';
 import { MabarModal, type MabarUiStatus } from './components/MabarModal';
-import { MabarSession, type MabarRole } from './net/mabar';
+import { MabarSession, warmUpMabarServer, type MabarRole } from './net/mabar';
 import { makeRoomCode, type MabarProfile } from './net/mabar-protocol';
 
 const CHAR_STORAGE_KEY = 'tawuran_char_config_v1';
@@ -206,6 +206,7 @@ export default function App() {
     closeMabarSession();
     resetMabarUi();
     setMabarOpen(true);
+    void warmUpMabarServer();
   }, [closeMabarSession, resetMabarUi]);
 
   const buildMabarProfile = useCallback(

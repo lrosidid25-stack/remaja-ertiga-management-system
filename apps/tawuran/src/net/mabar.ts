@@ -239,6 +239,23 @@ export class MabarSession {
   }
 }
 
+/**
+ * Bangunkan server mabar lebih awal (sekali tembak REST).
+ * Selain bikin koneksi berikutnya lebih cepat, ini juga mencatat aktivitas
+ * supaya proyek Supabase gratis tidak di-pause karena sepi.
+ */
+export async function warmUpMabarServer(): Promise<boolean> {
+  try {
+    const res = await fetch(`${MABAR_SUPABASE_URL}/rest/v1/`, {
+      headers: { apikey: MABAR_SUPABASE_ANON_KEY },
+      cache: 'no-store',
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Ekspor untuk keperluan debug/nama channel di UI. */
 export function roomChannelName(code: string): string {
   return channelNameFor(code);
